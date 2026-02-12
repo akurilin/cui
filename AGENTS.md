@@ -3,14 +3,14 @@
 ## Project Structure & Module Organization
 This repository is a minimal C + CMake starter focused on learning SDL-based UI development.
 
-- `hello.c`: current application entry point.
+- `main.c`: current application entry point.
 - `CMakeLists.txt`: canonical build configuration (targets, SDL linkage, output paths).
 - `Makefile`: convenience wrapper around common CMake commands.
 - `README.md`: setup and local workflow notes.
 - `build/`: generated build artifacts (ignored by Git).
 - `vendored/`: local third-party code checkout (currently ignored by Git).
 
-Keep new source files near `hello.c` until a larger structure is needed; then split into folders like `src/` and `include/`.
+Keep new source files near `main.c` until a larger structure is needed; then split into folders like `src/` and `include/`.
 
 ## Build, Test, and Development Commands
 Use the Makefile for day-to-day work:
@@ -27,7 +27,7 @@ Equivalent raw CMake commands:
 ## Coding Style & Naming Conventions
 - Language: C (C11-compatible style preferred).
 - Indentation: 4 spaces, no tabs in source files.
-- Braces: K&R style (`int main(void) { ... }`), consistent with `hello.c`.
+- Braces: K&R style (`int main(void) { ... }`), consistent with `main.c`.
 - Naming: `snake_case` for functions/variables, descriptive filenames (for example, `ui_layout.c`).
 - Keep functions small and purpose-driven; add brief comments only where logic is non-obvious.
 

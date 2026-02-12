@@ -21,7 +21,7 @@ cmake --build build
 make build    # configure + build
 make run      # build + run ./build/hello
 make clean    # remove build directory
-make format   # apply clang-format to hello.c
+make format   # apply clang-format to main.c
 make lint     # run clang-tidy checks
 make analyze  # run Clang Static Analyzer via scan-build
 make precommit # run all commit-gating checks

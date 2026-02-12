@@ -9,5 +9,5 @@ WarningsAsErrors: >
   bugprone-*,
   clang-analyzer-*,
   performance-*
-HeaderFilterRegex: '.*'
+HeaderFilterRegex: '^(?!.*vendored/).*$'
 FormatStyle: file
