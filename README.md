@@ -21,6 +21,38 @@ cmake --build build
 make build    # configure + build
 make run      # build + run ./build/hello
 make clean    # remove build directory
+make format   # apply clang-format to hello.c
+make lint     # run clang-tidy checks
+make analyze  # run Clang Static Analyzer via scan-build
+make precommit # run all commit-gating checks
+make install-hooks # enable repo-managed Git hooks
+```
+
+## Linting, Formatting, and Hooks:
+This repository uses:
+
+- `clang-format` for consistent formatting (`.clang-format`)
+- `clang-tidy` for linting and static checks (`.clang-tidy`)
+- `scan-build` for Clang Static Analyzer checks
+
+To enforce checks before every commit:
+
+```
+make install-hooks
+```
+
+After that, Git will run `.githooks/pre-commit`, which executes `make precommit`.
+
+On macOS, install required tools with Homebrew if needed:
+
+```bash
+brew install llvm
+```
+
+If Homebrew does not add LLVM binaries to your shell path automatically, add:
+
+```bash
+export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
 ```
 
 ## Run:
