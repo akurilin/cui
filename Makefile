@@ -40,7 +40,7 @@ lint: check-tools configure
 	$(CLANG_TIDY) $(C_SOURCES) -p build --extra-arg=-isysroot --extra-arg=$(SDK_PATH)
 
 analyze: check-tools configure
-	$(SCAN_BUILD) --status-bugs cmake --build build --clean-first
+	$(SCAN_BUILD) --status-bugs --exclude vendored/SDL cmake --build build --clean-first
 
 precommit: format-check lint analyze
 
