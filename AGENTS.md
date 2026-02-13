@@ -8,9 +8,16 @@ This repository is a minimal C + CMake starter focused on learning SDL-based UI 
 - `Makefile`: convenience wrapper around common CMake commands.
 - `README.md`: setup and local workflow notes.
 - `build/`: generated build artifacts (ignored by Git).
-- `vendored/`: local third-party code checkout (currently ignored by Git).
+- `vendored/SDL/`: SDL3 vendored as a git submodule.
 
-Keep new source files near `main.c` until a larger structure is needed; then split into folders like `src/` and `include/`.
+### UI Architecture
+Retained-mode UI system with C-style polymorphism (struct embedding + vtable):
+
+- **`ui_element`** (`include/ui/ui_element.h`): base type with `SDL_FRect rect`, `visible`/`enabled` flags, and a `ui_element_ops` vtable (`handle_event`, `update`, `render`, `destroy`).
+- **`ui_context`** (`include/ui/ui_context.h`): owns and dispatches all registered elements — forwards events, updates, and renders in insertion order.
+- **Widgets**: `ui_pane` (background panel), `ui_button` (clickable with callback), `ui_text` (static label), `ui_fps_counter` (self-updating FPS display).
+
+Every concrete widget embeds `ui_element` as its first field for safe polymorphic casting. Use `SDL_PointInRectFloat` (from SDL3's `SDL_rect.h`) for hit-testing rather than hand-rolled helpers.
 
 ## Build, Test, and Development Commands
 Use the Makefile for day-to-day work:
@@ -38,6 +45,10 @@ Formatting and linting are configured:
 - `make format`: apply `clang-format` using `.clang-format`.
 - `make format-check`: verify formatting without modifying files.
 - `make lint`: run `clang-tidy` checks.
+- `make analyze`: run static analysis (excludes vendored SDL).
+
+**Important:** Always use `make format` to format code — never invoke `clang-format` directly.
+Pre-commit hooks run format-check, lint, and analyze automatically.
 
 ## Testing Guidelines
 No automated test framework is configured yet. For now, validate changes by:
