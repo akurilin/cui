@@ -7,6 +7,7 @@
 #include "ui/ui_fps_counter.h"
 #include "ui/ui_image.h"
 #include "ui/ui_pane.h"
+#include "ui/ui_slider.h"
 #include "ui/ui_text.h"
 
 #include <stdbool.h>
@@ -42,6 +43,13 @@ static void log_checkbox_change(bool checked, void *context)
 {
     (void)context;
     printf("checkbox toggled: %s\n", checked ? "checked" : "unchecked");
+    fflush(stdout);
+}
+
+static void log_slider_change(float value, void *context)
+{
+    (void)context;
+    printf("slider value: %.2f\n", value);
     fflush(stdout);
 }
 
@@ -217,6 +225,16 @@ int main(void)
     ui_image *icon = ui_image_create(renderer, image_x, image_y, image_size, image_size,
                                      "assets/icon.png", &border_color_red);
 
+    const SDL_FRect slider_rect = {
+        pane_width + ((content_width - 240.0F) / 2.0F),
+        button_rect.y + button_rect.h + 32.0F,
+        240.0F,
+        24.0F,
+    };
+    ui_slider *slider =
+        ui_slider_create(&slider_rect, 0.0F, 100.0F, 50.0F, sidebar_text_color, button_up_color,
+                         button_down_color, &border_color_red, log_slider_change, NULL);
+
     // FPS counter overlays diagnostic text in the window's lower-right area.
     // Viewport dimensions are supplied so the element can anchor itself
     // correctly regardless of frame timing.
@@ -238,6 +256,7 @@ int main(void)
         !add_element_or_fail(&context, (ui_element *)checkbox) ||
         !add_element_or_fail(&context, (ui_element *)button) ||
         !add_element_or_fail(&context, (ui_element *)icon) ||
+        !add_element_or_fail(&context, (ui_element *)slider) ||
         !add_element_or_fail(&context, (ui_element *)fps_counter))
     {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create or register UI elements");
