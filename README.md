@@ -35,6 +35,8 @@ This repository uses:
 - `clang-tidy` for linting and static checks (`.clang-tidy`)
 - `scan-build` for Clang Static Analyzer checks
 
+Brace style policy: use Allman braces everywhere, meaning opening braces go on a new line for functions, control flow, and aggregate declarations.
+
 To enforce checks before every commit:
 
 ```

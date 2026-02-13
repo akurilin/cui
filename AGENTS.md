@@ -27,12 +27,16 @@ Equivalent raw CMake commands:
 ## Coding Style & Naming Conventions
 - Language: C (C11-compatible style preferred).
 - Indentation: 4 spaces, no tabs in source files.
-- Braces: K&R style (`int main(void) { ... }`), consistent with `main.c`.
+- Braces: Allman style for all brace-using constructs. Put the opening brace on its own line for functions, control flow (`if`, `for`, `while`, `switch`), and aggregate declarations (`struct`, `union`, `enum`).
 - Naming: `snake_case` for functions/variables, descriptive filenames (for example, `ui_layout.c`).
 - Function names should start with a verb and make behavior/intent obvious (for example, `is_point_in_rect`, `render_button`, `update_layout`), avoiding ambiguous noun-like names.
 - Keep functions small and purpose-driven; add brief comments only where logic is non-obvious.
 
-No formatter or linter is configured yet. If one is introduced, document exact commands in this file and `README.md`.
+Formatting and linting are configured:
+
+- `make format`: apply `clang-format` using `.clang-format`.
+- `make format-check`: verify formatting without modifying files.
+- `make lint`: run `clang-tidy` checks.
 
 ## Testing Guidelines
 No automated test framework is configured yet. For now, validate changes by:
