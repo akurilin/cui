@@ -14,6 +14,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIGURATION>")
 # Build the SDL project that lives in vendored/SDL and make its targets available to this project.
 # EXCLUDE_FROM_ALL means SDL won't be built unless something depends on it (which hello does below).
 add_subdirectory(vendored/SDL EXCLUDE_FROM_ALL)
+add_subdirectory(vendored/SDL_image EXCLUDE_FROM_ALL)
 
 # Create your game executable target as usual
 # Define an executable target named "hello"; WIN32 changes subsystem behavior on Windows only.
@@ -27,6 +28,7 @@ add_executable(
     src/ui/ui_element.c
     src/ui/ui_fps_counter.c
     src/ui/ui_pane.c
+    src/ui/ui_image.c
     src/ui/ui_text.c
 )
 
@@ -34,4 +36,4 @@ target_include_directories(hello PRIVATE include)
 
 # Link to the actual SDL3 library.
 # Link the "hello" target against SDL3, privately (dependency is used for building hello, not exposed to dependents).
-target_link_libraries(hello PRIVATE SDL3::SDL3)
+target_link_libraries(hello PRIVATE SDL3::SDL3 SDL3_image::SDL3_image)

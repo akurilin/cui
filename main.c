@@ -5,6 +5,7 @@
 #include "ui/ui_checkbox.h"
 #include "ui/ui_context.h"
 #include "ui/ui_fps_counter.h"
+#include "ui/ui_image.h"
 #include "ui/ui_pane.h"
 #include "ui/ui_text.h"
 
@@ -209,6 +210,14 @@ int main(void)
         ui_button_create(&button_rect, button_up_color, button_down_color, button_border_color,
                          button_click_handler_fn, button_click_context);
 
+    // Demo image displayed above the button in the content area.
+    // If assets/icon.png is missing, ui_image uses assets/missing-image.png.
+    const float image_size = 64.0F;
+    const float image_x = pane_width + (content_width - image_size) / 2.0F;
+    const float image_y = button_rect.y - image_size - 24.0F;
+    ui_image *icon =
+        ui_image_create(renderer, image_x, image_y, image_size, image_size, "assets/icon.png");
+
     // FPS counter overlays diagnostic text in the window's lower-right area.
     // Viewport dimensions are supplied so the element can anchor itself
     // correctly regardless of frame timing.
@@ -229,6 +238,7 @@ int main(void)
         !add_element_or_fail(&context, (ui_element *)item_3) ||
         !add_element_or_fail(&context, (ui_element *)checkbox) ||
         !add_element_or_fail(&context, (ui_element *)button) ||
+        !add_element_or_fail(&context, (ui_element *)icon) ||
         !add_element_or_fail(&context, (ui_element *)fps_counter))
     {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create or register UI elements");

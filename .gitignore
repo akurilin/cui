@@ -60,3 +60,4 @@ build/
 # Locally cloned third-party dependencies
 vendored/*
 !vendored/SDL
+!vendored/SDL_image
