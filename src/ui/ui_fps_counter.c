@@ -12,8 +12,7 @@ static void update_fps_label(ui_fps_counter *counter) {
 
     const float label_width = (float)strlen(counter->label) * DEBUG_GLYPH_WIDTH;
     counter->base.rect.x = (float)counter->viewport_width - counter->padding - label_width;
-    counter->base.rect.y =
-        (float)counter->viewport_height - counter->padding - DEBUG_GLYPH_HEIGHT;
+    counter->base.rect.y = (float)counter->viewport_height - counter->padding - DEBUG_GLYPH_HEIGHT;
 }
 
 static void handle_fps_counter_event(ui_element *element, const SDL_Event *event) {
