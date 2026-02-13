@@ -63,7 +63,7 @@ For every UI change, validate independently without user involvement by followin
 
 1. `make build`
 2. Run the app (`./build/hello`) and keep it open long enough to render
-3. Capture a screenshot from the command line (for example `screencapture -x /tmp/cui-shots/hello-full.png`)
+3. Capture a window-only screenshot from the command line using `scripts/capture_app_window.sh` (for example `./scripts/capture_app_window.sh ./build/Debug/hello /tmp/cui-shots/hello-window.png`)
 4. Inspect the captured image and compare it against the requested UI behavior
 5. Report whether the UI change succeeded and list any visible issues or follow-up fixes
 
