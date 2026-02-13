@@ -10,15 +10,14 @@ typedef struct ui_pane
 {
     ui_element base;
     SDL_Color fill_color;
-    SDL_Color border_color;
 } ui_pane;
 
 /*
- * Create a pane covering rect with fill and border colors.
+ * Create a pane covering rect with fill color and optional border.
  *
  * Why this exists: it provides a reusable container-like visual primitive
  * without requiring ad-hoc draw calls in main render code.
  */
-ui_pane *ui_pane_create(const SDL_FRect *rect, SDL_Color fill_color, SDL_Color border_color);
+ui_pane *ui_pane_create(const SDL_FRect *rect, SDL_Color fill_color, const SDL_Color *border_color);
 
 #endif

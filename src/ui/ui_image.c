@@ -9,6 +9,11 @@ static void render_image(const ui_element *element, SDL_Renderer *renderer)
 {
     const ui_image *image = (const ui_image *)element;
     SDL_RenderTexture(renderer, image->texture, NULL, &image->base.rect);
+    if (image->base.has_border)
+    {
+        ui_element_render_inner_border(renderer, &image->base.rect, image->base.border_color,
+                                       image->base.border_width);
+    }
 }
 
 static void destroy_image(ui_element *element)
@@ -29,7 +34,7 @@ static const ui_element_ops IMAGE_OPS = {
 };
 
 ui_image *ui_image_create(SDL_Renderer *renderer, float x, float y, float w, float h,
-                          const char *file_path)
+                          const char *file_path, const SDL_Color *border_color)
 {
     if (renderer == NULL)
     {
@@ -73,6 +78,7 @@ ui_image *ui_image_create(SDL_Renderer *renderer, float x, float y, float w, flo
     image->base.ops = &IMAGE_OPS;
     image->base.visible = true;
     image->base.enabled = false;
+    ui_element_set_border(&image->base, border_color, 1.0F);
     image->texture = texture;
 
     return image;

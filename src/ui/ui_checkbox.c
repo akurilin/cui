@@ -83,6 +83,11 @@ static void render_checkbox(const ui_element *element, SDL_Renderer *renderer)
     SDL_SetRenderDrawColor(renderer, checkbox->label_color.r, checkbox->label_color.g,
                            checkbox->label_color.b, checkbox->label_color.a);
     SDL_RenderDebugText(renderer, label_x, label_y, checkbox->label);
+    if (checkbox->base.has_border)
+    {
+        ui_element_render_inner_border(renderer, &checkbox->base.rect, checkbox->base.border_color,
+                                       checkbox->base.border_width);
+    }
 }
 
 static void destroy_checkbox(ui_element *element) { free(element); }
@@ -98,7 +103,7 @@ static const ui_element_ops CHECKBOX_OPS = {
 ui_checkbox *ui_checkbox_create(float x, float y, const char *label, SDL_Color box_color,
                                 SDL_Color check_color, SDL_Color label_color,
                                 bool initially_checked, checkbox_change_handler on_change,
-                                void *on_change_context)
+                                void *on_change_context, const SDL_Color *border_color)
 {
     if (label == NULL)
     {
@@ -118,6 +123,7 @@ ui_checkbox *ui_checkbox_create(float x, float y, const char *label, SDL_Color b
     checkbox->base.ops = &CHECKBOX_OPS;
     checkbox->base.visible = true;
     checkbox->base.enabled = true;
+    ui_element_set_border(&checkbox->base, border_color, 1.0F);
     checkbox->box_color = box_color;
     checkbox->check_color = check_color;
     checkbox->label_color = label_color;

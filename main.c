@@ -23,6 +23,7 @@ static const Uint8 COLOR_PANE = 52;
 static const Uint8 COLOR_BUTTON_UP = 170;
 static const Uint8 COLOR_BUTTON_DOWN = 90;
 static const Uint8 COLOR_BLACK = 0;
+static const Uint8 COLOR_RED = 255;
 static const Uint8 COLOR_TEXT = 235;
 static const Uint8 COLOR_ALPHA_OPAQUE = 255;
 
@@ -157,11 +158,11 @@ int main(void)
     const SDL_FRect pane_rect = {0.0F, 0.0F, pane_width, (float)WINDOW_HEIGHT};
     const SDL_Color pane_fill_color =
         (SDL_Color){COLOR_PANE, COLOR_PANE, COLOR_PANE, COLOR_ALPHA_OPAQUE};
-    const SDL_Color pane_border_color =
-        (SDL_Color){COLOR_BLACK, COLOR_BLACK, COLOR_BLACK, COLOR_ALPHA_OPAQUE};
+    const SDL_Color border_color_red =
+        (SDL_Color){COLOR_RED, COLOR_BLACK, COLOR_BLACK, COLOR_ALPHA_OPAQUE};
 
     // Sidebar background panel.
-    ui_pane *pane = ui_pane_create(&pane_rect, pane_fill_color, pane_border_color);
+    ui_pane *pane = ui_pane_create(&pane_rect, pane_fill_color, &border_color_red);
 
     // Sidebar labels. Using shared spacing constants keeps vertical rhythm
     // consistent and makes future layout adjustments straightforward.
@@ -173,19 +174,19 @@ int main(void)
     const char *item_1_label = "item 1";
     const char *item_2_label = "item 2";
     const char *item_3_label = "item 3";
-    ui_text *item_1 =
-        ui_text_create(sidebar_text_x, sidebar_text_start_y, item_1_label, sidebar_text_color);
+    ui_text *item_1 = ui_text_create(sidebar_text_x, sidebar_text_start_y, item_1_label,
+                                     sidebar_text_color, &border_color_red);
     ui_text *item_2 = ui_text_create(sidebar_text_x, sidebar_text_start_y + sidebar_text_spacing,
-                                     item_2_label, sidebar_text_color);
+                                     item_2_label, sidebar_text_color, &border_color_red);
     ui_text *item_3 =
         ui_text_create(sidebar_text_x, sidebar_text_start_y + sidebar_text_spacing * 2.0F,
-                       item_3_label, sidebar_text_color);
+                       item_3_label, sidebar_text_color, &border_color_red);
 
     // Demo checkbox placed below the sidebar text items.
     const float checkbox_y = sidebar_text_start_y + (sidebar_text_spacing * 3.0F);
     ui_checkbox *checkbox = ui_checkbox_create(
         sidebar_text_x, checkbox_y, "toggle me", sidebar_text_color, sidebar_text_color,
-        sidebar_text_color, false, log_checkbox_change, NULL);
+        sidebar_text_color, false, log_checkbox_change, NULL, &border_color_red);
 
     // Main button centered within the content area (not the full window).
     // The X position intentionally offsets by `pane_width` so sidebar and content
@@ -200,14 +201,12 @@ int main(void)
         (SDL_Color){COLOR_BUTTON_UP, COLOR_BUTTON_UP, COLOR_BUTTON_UP, COLOR_ALPHA_OPAQUE};
     const SDL_Color button_down_color =
         (SDL_Color){COLOR_BUTTON_DOWN, COLOR_BUTTON_DOWN, COLOR_BUTTON_DOWN, COLOR_ALPHA_OPAQUE};
-    const SDL_Color button_border_color =
-        (SDL_Color){COLOR_BLACK, COLOR_BLACK, COLOR_BLACK, COLOR_ALPHA_OPAQUE};
     button_click_handler button_click_handler_fn = log_button_press;
     void *button_click_context = NULL;
 
     // Interactive button that triggers `log_button_press` on click.
     ui_button *button =
-        ui_button_create(&button_rect, button_up_color, button_down_color, button_border_color,
+        ui_button_create(&button_rect, button_up_color, button_down_color, &border_color_red,
                          button_click_handler_fn, button_click_context);
 
     // Demo image displayed above the button in the content area.
@@ -215,8 +214,8 @@ int main(void)
     const float image_size = 64.0F;
     const float image_x = pane_width + (content_width - image_size) / 2.0F;
     const float image_y = button_rect.y - image_size - 24.0F;
-    ui_image *icon =
-        ui_image_create(renderer, image_x, image_y, image_size, image_size, "assets/icon.png");
+    ui_image *icon = ui_image_create(renderer, image_x, image_y, image_size, image_size,
+                                     "assets/icon.png", &border_color_red);
 
     // FPS counter overlays diagnostic text in the window's lower-right area.
     // Viewport dimensions are supplied so the element can anchor itself
@@ -226,8 +225,8 @@ int main(void)
     const float fps_padding = 12.0F;
     const SDL_Color fps_text_color =
         (SDL_Color){COLOR_TEXT, COLOR_TEXT, COLOR_TEXT, COLOR_ALPHA_OPAQUE};
-    ui_fps_counter *fps_counter =
-        ui_fps_counter_create(fps_viewport_width, fps_viewport_height, fps_padding, fps_text_color);
+    ui_fps_counter *fps_counter = ui_fps_counter_create(
+        fps_viewport_width, fps_viewport_height, fps_padding, fps_text_color, &border_color_red);
 
     // Register all created elements with the UI context.
     // If any registration fails, previously-added elements remain owned by

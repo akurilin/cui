@@ -18,7 +18,9 @@ typedef struct ui_text
  *
  * Content lifetime: content pointer is borrowed, not copied, so the pointed-to
  * string must remain valid for as long as the element is alive.
+ * border_color is optional; pass NULL for no border.
  */
-ui_text *ui_text_create(float x, float y, const char *content, SDL_Color color);
+ui_text *ui_text_create(float x, float y, const char *content, SDL_Color color,
+                        const SDL_Color *border_color);
 
 #endif

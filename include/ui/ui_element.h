@@ -59,6 +59,33 @@ struct ui_element
     const ui_element_ops *ops;
     bool visible;
     bool enabled;
+    bool has_border;
+    SDL_Color border_color;
+    float border_width;
 };
+
+/*
+ * Configure an optional border for an element.
+ *
+ * Behavior:
+ * - border_color == NULL clears border rendering.
+ * - border_color != NULL enables border rendering using the provided color.
+ * - width is clamped to at least 1.0f when border is enabled.
+ */
+void ui_element_set_border(ui_element *element, const SDL_Color *border_color, float width);
+
+/*
+ * Disable border rendering for an element.
+ */
+void ui_element_clear_border(ui_element *element);
+
+/*
+ * Draw an internal border fully inside rect.
+ *
+ * Border geometry is drawn as 4 filled strips and never extends outside rect.
+ * If width exceeds half of rect width/height, width is clamped to fit.
+ */
+void ui_element_render_inner_border(SDL_Renderer *renderer, const SDL_FRect *rect, SDL_Color color,
+                                    float width);
 
 #endif

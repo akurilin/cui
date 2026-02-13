@@ -12,6 +12,8 @@ static void update_fps_label(ui_fps_counter *counter)
     snprintf(counter->label, sizeof(counter->label), "FPS: %.1f", counter->displayed_fps);
 
     const float label_width = (float)strlen(counter->label) * DEBUG_GLYPH_WIDTH;
+    counter->base.rect.w = label_width;
+    counter->base.rect.h = DEBUG_GLYPH_HEIGHT;
     counter->base.rect.x = (float)counter->viewport_width - counter->padding - label_width;
     counter->base.rect.y = (float)counter->viewport_height - counter->padding - DEBUG_GLYPH_HEIGHT;
 }
@@ -47,6 +49,11 @@ static void render_fps_counter(const ui_element *element, SDL_Renderer *renderer
     SDL_SetRenderDrawColor(renderer, counter->color.r, counter->color.g, counter->color.b,
                            counter->color.a);
     SDL_RenderDebugText(renderer, counter->base.rect.x, counter->base.rect.y, counter->label);
+    if (counter->base.has_border)
+    {
+        ui_element_render_inner_border(renderer, &counter->base.rect, counter->base.border_color,
+                                       counter->base.border_width);
+    }
 }
 
 static void destroy_fps_counter(ui_element *element) { free(element); }
@@ -60,7 +67,7 @@ static const ui_element_ops FPS_COUNTER_OPS = {
 
 // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
 ui_fps_counter *ui_fps_counter_create(int viewport_width, int viewport_height, float padding,
-                                      SDL_Color color)
+                                      SDL_Color color, const SDL_Color *border_color)
 {
     if (viewport_width <= 0 || viewport_height <= 0)
     {
@@ -77,6 +84,7 @@ ui_fps_counter *ui_fps_counter_create(int viewport_width, int viewport_height, f
     counter->base.ops = &FPS_COUNTER_OPS;
     counter->base.visible = true;
     counter->base.enabled = true;
+    ui_element_set_border(&counter->base, border_color, 1.0F);
     counter->color = color;
     counter->viewport_width = viewport_width;
     counter->viewport_height = viewport_height;

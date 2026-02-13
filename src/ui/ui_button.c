@@ -46,10 +46,11 @@ static void render_button(const ui_element *element, SDL_Renderer *renderer)
 
     SDL_SetRenderDrawColor(renderer, fill_color.r, fill_color.g, fill_color.b, fill_color.a);
     SDL_RenderFillRect(renderer, &button->base.rect);
-
-    SDL_SetRenderDrawColor(renderer, button->border_color.r, button->border_color.g,
-                           button->border_color.b, button->border_color.a);
-    SDL_RenderRect(renderer, &button->base.rect);
+    if (button->base.has_border)
+    {
+        ui_element_render_inner_border(renderer, &button->base.rect, button->base.border_color,
+                                       button->base.border_width);
+    }
 }
 
 static void destroy_button(ui_element *element) { free(element); }
@@ -63,7 +64,7 @@ static const ui_element_ops BUTTON_OPS = {
 
 // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
 ui_button *ui_button_create(const SDL_FRect *rect, SDL_Color up_color, SDL_Color down_color,
-                            SDL_Color border_color, button_click_handler on_click,
+                            const SDL_Color *border_color, button_click_handler on_click,
                             void *on_click_context)
 {
     if (rect == NULL)
@@ -81,9 +82,9 @@ ui_button *ui_button_create(const SDL_FRect *rect, SDL_Color up_color, SDL_Color
     button->base.ops = &BUTTON_OPS;
     button->base.visible = true;
     button->base.enabled = true;
+    ui_element_set_border(&button->base, border_color, 1.0F);
     button->up_color = up_color;
     button->down_color = down_color;
-    button->border_color = border_color;
     button->is_pressed = false;
     button->on_click = on_click;
     button->on_click_context = on_click_context;

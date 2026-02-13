@@ -21,10 +21,11 @@ static void render_pane(const ui_element *element, SDL_Renderer *renderer)
     SDL_SetRenderDrawColor(renderer, pane->fill_color.r, pane->fill_color.g, pane->fill_color.b,
                            pane->fill_color.a);
     SDL_RenderFillRect(renderer, &pane->base.rect);
-
-    SDL_SetRenderDrawColor(renderer, pane->border_color.r, pane->border_color.g,
-                           pane->border_color.b, pane->border_color.a);
-    SDL_RenderRect(renderer, &pane->base.rect);
+    if (pane->base.has_border)
+    {
+        ui_element_render_inner_border(renderer, &pane->base.rect, pane->base.border_color,
+                                       pane->base.border_width);
+    }
 }
 
 static void destroy_pane(ui_element *element) { free(element); }
@@ -37,7 +38,7 @@ static const ui_element_ops PANE_OPS = {
 };
 
 // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
-ui_pane *ui_pane_create(const SDL_FRect *rect, SDL_Color fill_color, SDL_Color border_color)
+ui_pane *ui_pane_create(const SDL_FRect *rect, SDL_Color fill_color, const SDL_Color *border_color)
 {
     if (rect == NULL)
     {
@@ -54,8 +55,8 @@ ui_pane *ui_pane_create(const SDL_FRect *rect, SDL_Color fill_color, SDL_Color b
     pane->base.ops = &PANE_OPS;
     pane->base.visible = true;
     pane->base.enabled = true;
+    ui_element_set_border(&pane->base, border_color, 1.0F);
     pane->fill_color = fill_color;
-    pane->border_color = border_color;
 
     return pane;
 }

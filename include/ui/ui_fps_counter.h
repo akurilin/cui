@@ -30,11 +30,12 @@ typedef struct ui_fps_counter
  * - viewport_width/viewport_height: dimensions used for anchoring
  * - padding: inset from right/bottom edges in pixels
  * - color: text color
+ * - border_color: optional border color (NULL disables border)
  *
  * Update requirement: ui_context_update must be called each frame with a real
  * delta_seconds value, otherwise FPS output will not be meaningful.
  */
 ui_fps_counter *ui_fps_counter_create(int viewport_width, int viewport_height, float padding,
-                                      SDL_Color color);
+                                      SDL_Color color, const SDL_Color *border_color);
 
 #endif

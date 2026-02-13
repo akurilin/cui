@@ -47,6 +47,7 @@ typedef struct ui_checkbox
  * - label_color: text color
  * - initially_checked: starting toggle state
  * - on_change/on_change_context: optional callback + user data
+ * - border_color: optional border color around full checkbox bounds (NULL disables)
  *
  * Returns a heap-allocated checkbox or NULL on failure.
  * Ownership transfers to caller (or ui_context after ui_context_add succeeds).
@@ -54,6 +55,6 @@ typedef struct ui_checkbox
 ui_checkbox *ui_checkbox_create(float x, float y, const char *label, SDL_Color box_color,
                                 SDL_Color check_color, SDL_Color label_color,
                                 bool initially_checked, checkbox_change_handler on_change,
-                                void *on_change_context);
+                                void *on_change_context, const SDL_Color *border_color);
 
 #endif

@@ -33,6 +33,7 @@ typedef struct ui_image
  * - x, y:     top-left position in window coordinates
  * - w, h:     display width and height in window coordinates
  * - file_path: path to the image file (PNG, JPG, BMP, etc.)
+ * - border_color: optional border color (NULL disables border)
  *
  * Returns a heap-allocated ui_image, or NULL if allocation fails, renderer
  * is NULL, or both the requested image and fallback image cannot be loaded.
@@ -40,6 +41,6 @@ typedef struct ui_image
  * succeeds).
  */
 ui_image *ui_image_create(SDL_Renderer *renderer, float x, float y, float w, float h,
-                          const char *file_path);
+                          const char *file_path, const SDL_Color *border_color);
 
 #endif
