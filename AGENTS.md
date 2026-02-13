@@ -31,6 +31,7 @@ Equivalent raw CMake commands:
 - Naming: `snake_case` for functions/variables, descriptive filenames (for example, `ui_layout.c`).
 - Function names should start with a verb and make behavior/intent obvious (for example, `is_point_in_rect`, `render_button`, `update_layout`), avoiding ambiguous noun-like names.
 - Keep functions small and purpose-driven; add brief comments only where logic is non-obvious.
+- When adding new functionality declarations in header files, document the public API thoroughly: purpose, behavior/contract, parameters, return value, and ownership/lifecycle expectations for future maintainers.
 
 No formatter or linter is configured yet. If one is introduced, document exact commands in this file and `README.md`.
 
@@ -41,6 +42,15 @@ No automated test framework is configured yet. For now, validate changes by:
 2. `make run` (must execute without runtime errors)
 
 When tests are added, place them under `tests/` and wire them into CMake/CTest (`ctest --test-dir build`).
+
+## UI Validation Workflow
+For every UI change, validate independently without user involvement by following this process:
+
+1. `make build`
+2. Run the app (`./build/hello`) and keep it open long enough to render
+3. Capture a screenshot from the command line (for example `screencapture -x /tmp/cui-shots/hello-full.png`)
+4. Inspect the captured image and compare it against the requested UI behavior
+5. Report whether the UI change succeeded and list any visible issues or follow-up fixes
 
 ## Commit & Pull Request Guidelines
 Git history is currently minimal, so no strict convention is established yet. Use this going forward:

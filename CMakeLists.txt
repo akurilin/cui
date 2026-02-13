@@ -17,7 +17,19 @@ add_subdirectory(vendored/SDL EXCLUDE_FROM_ALL)
 
 # Create your game executable target as usual
 # Define an executable target named "hello"; WIN32 changes subsystem behavior on Windows only.
-add_executable(hello WIN32 main.c)
+add_executable(
+    hello
+    WIN32
+    main.c
+    src/ui/ui_button.c
+    src/ui/ui_context.c
+    src/ui/ui_element.c
+    src/ui/ui_fps_counter.c
+    src/ui/ui_pane.c
+    src/ui/ui_text.c
+)
+
+target_include_directories(hello PRIVATE include)
 
 # Link to the actual SDL3 library.
 # Link the "hello" target against SDL3, privately (dependency is used for building hello, not exposed to dependents).
