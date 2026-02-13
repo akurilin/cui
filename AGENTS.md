@@ -29,6 +29,7 @@ Equivalent raw CMake commands:
 - Indentation: 4 spaces, no tabs in source files.
 - Braces: K&R style (`int main(void) { ... }`), consistent with `main.c`.
 - Naming: `snake_case` for functions/variables, descriptive filenames (for example, `ui_layout.c`).
+- Function names should start with a verb and make behavior/intent obvious (for example, `is_point_in_rect`, `render_button`, `update_layout`), avoiding ambiguous noun-like names.
 - Keep functions small and purpose-driven; add brief comments only where logic is non-obvious.
 
 No formatter or linter is configured yet. If one is introduced, document exact commands in this file and `README.md`.

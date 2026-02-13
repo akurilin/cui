@@ -6,8 +6,8 @@
 #include <stdio.h>
 
 // Window dimensions in pixels.
-static const int WINDOW_WIDTH = 480;
-static const int WINDOW_HEIGHT = 320;
+static const int WINDOW_WIDTH = 1024;
+static const int WINDOW_HEIGHT = 768;
 
 // Colors used by the retro-style UI.
 static const Uint8 COLOR_BG = 24;
@@ -18,7 +18,7 @@ static const Uint8 COLOR_ALPHA_OPAQUE = 255;
 
 // Helper function: return true if point (px, py) is inside the rectangle.
 // We use float here because SDL mouse coordinates in events are floats in SDL3.
-static bool point_in_rect(float cursor_x, float cursor_y, const SDL_FRect *rect) {
+static bool is_point_in_rect(float cursor_x, float cursor_y, const SDL_FRect *rect) {
     // Check x bounds and y bounds (inclusive) to decide if pointer is inside.
     return cursor_x >= rect->x && cursor_x <= rect->x + rect->w && cursor_y >= rect->y &&
            cursor_y <= rect->y + rect->h;
@@ -35,7 +35,7 @@ int main(void) {
         return 1;
     }
 
-    // Create a window named "SDL Button Demo", width 480, height 320.
+    // Create a window named "SDL Button Demo" using configured dimensions.
     // Last argument is window flags; 0 means default behavior.
     SDL_Window *window = SDL_CreateWindow("SDL Button Demo", WINDOW_WIDTH, WINDOW_HEIGHT, 0);
     // SDL returns NULL when creation fails.
@@ -68,8 +68,12 @@ int main(void) {
     }
 
     // Define our button rectangle (x, y, width, height) in window coordinates.
-    // Top-left corner is (170, 120), size is 140x80.
-    const SDL_FRect button = {170.0F, 120.0F, 140.0F, 80.0F};
+    // Keep button centered so layout scales with window size changes.
+    const float button_width = 140.0F;
+    const float button_height = 80.0F;
+    const SDL_FRect button = {((float)WINDOW_WIDTH - button_width) / 2.0F,
+                              ((float)WINDOW_HEIGHT - button_height) / 2.0F, button_width,
+                              button_height};
     // Main loop control flag. As long as true, app keeps running.
     bool running = true;
     // Tracks whether button is currently pressed (for visual feedback color).
@@ -88,7 +92,7 @@ int main(void) {
             } else if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN &&
                        event.button.button == SDL_BUTTON_LEFT) {
                 // Only treat it as a button press if the click is inside the button rect.
-                if (point_in_rect(event.button.x, event.button.y, &button)) {
+                if (is_point_in_rect(event.button.x, event.button.y, &button)) {
                     // Save pressed state so next render uses "pressed" color.
                     is_pressed = true;
                     // Print test message every time the button is pressed.
