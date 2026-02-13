@@ -2,6 +2,7 @@
 #include <SDL3/SDL.h>
 
 #include "ui/ui_button.h"
+#include "ui/ui_checkbox.h"
 #include "ui/ui_context.h"
 #include "ui/ui_fps_counter.h"
 #include "ui/ui_pane.h"
@@ -31,6 +32,14 @@ static void log_button_press(void *context)
 {
     (void)context;
     printf("button pressed\n");
+    fflush(stdout);
+}
+
+// Demo change callback used by the checkbox element.
+static void log_checkbox_change(bool checked, void *context)
+{
+    (void)context;
+    printf("checkbox toggled: %s\n", checked ? "checked" : "unchecked");
     fflush(stdout);
 }
 
@@ -171,6 +180,12 @@ int main(void)
         ui_text_create(sidebar_text_x, sidebar_text_start_y + sidebar_text_spacing * 2.0F,
                        item_3_label, sidebar_text_color);
 
+    // Demo checkbox placed below the sidebar text items.
+    const float checkbox_y = sidebar_text_start_y + (sidebar_text_spacing * 3.0F);
+    ui_checkbox *checkbox = ui_checkbox_create(
+        sidebar_text_x, checkbox_y, "toggle me", sidebar_text_color, sidebar_text_color,
+        sidebar_text_color, false, log_checkbox_change, NULL);
+
     // Main button centered within the content area (not the full window).
     // The X position intentionally offsets by `pane_width` so sidebar and content
     // remain visually independent.
@@ -212,6 +227,7 @@ int main(void)
         !add_element_or_fail(&context, (ui_element *)item_1) ||
         !add_element_or_fail(&context, (ui_element *)item_2) ||
         !add_element_or_fail(&context, (ui_element *)item_3) ||
+        !add_element_or_fail(&context, (ui_element *)checkbox) ||
         !add_element_or_fail(&context, (ui_element *)button) ||
         !add_element_or_fail(&context, (ui_element *)fps_counter))
     {

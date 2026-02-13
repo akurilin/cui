@@ -22,6 +22,7 @@ add_executable(
     WIN32
     main.c
     src/ui/ui_button.c
+    src/ui/ui_checkbox.c
     src/ui/ui_context.c
     src/ui/ui_element.c
     src/ui/ui_fps_counter.c
