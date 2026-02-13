@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository (with submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install LLVM toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format clang-tidy clang-tools
+
+      - name: Install SDL3 build dependencies
+        run: |
+          sudo apt-get install -y \
+            libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev \
+            libwayland-dev libwayland-egl-backend-dev wayland-protocols \
+            libgl-dev libgles-dev libegl-dev \
+            libdbus-1-dev libibus-1.0-dev \
+            libasound2-dev libpulse-dev \
+            libudev-dev libdecor-0-dev libxkbcommon-dev
+
+      - name: Check formatting
+        run: make format-check
+
+      - name: Build
+        run: make build
+
+      - name: Lint
+        run: make lint
+
+      - name: Static analysis
+        run: make analyze

@@ -3,11 +3,20 @@
 C_SOURCES := $(shell find . -type f -name '*.c' -not -path './build/*' -not -path './vendored/*')
 C_HEADERS := $(shell find . -type f -name '*.h' -not -path './build/*' -not -path './vendored/*')
 C_FILES := $(C_SOURCES) $(C_HEADERS)
-LLVM_BIN ?= /opt/homebrew/opt/llvm/bin
+
+UNAME := $(shell uname)
+ifeq ($(UNAME),Darwin)
+  LLVM_BIN ?= /opt/homebrew/opt/llvm/bin
+  SDK_PATH := $(shell xcrun --show-sdk-path)
+  TIDY_EXTRA_ARGS := --extra-arg=-isysroot --extra-arg=$(SDK_PATH)
+else
+  LLVM_BIN ?= /usr/bin
+  TIDY_EXTRA_ARGS :=
+endif
+
 CLANG_FORMAT := $(LLVM_BIN)/clang-format
 CLANG_TIDY := $(LLVM_BIN)/clang-tidy
 SCAN_BUILD := $(LLVM_BIN)/scan-build
-SDK_PATH := $(shell xcrun --show-sdk-path)
 
 check-tools:
 	@for tool in "$(CLANG_FORMAT)" "$(CLANG_TIDY)" "$(SCAN_BUILD)"; do \
@@ -37,7 +46,7 @@ format-check: check-tools
 	$(CLANG_FORMAT) --dry-run --Werror $(C_FILES)
 
 lint: check-tools configure
-	$(CLANG_TIDY) $(C_SOURCES) -p build --extra-arg=-isysroot --extra-arg=$(SDK_PATH)
+	$(CLANG_TIDY) $(C_SOURCES) -p build $(TIDY_EXTRA_ARGS)
 
 analyze: check-tools configure
 	$(SCAN_BUILD) --status-bugs --exclude vendored/SDL cmake --build build --clean-first
