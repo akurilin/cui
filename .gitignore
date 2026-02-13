@@ -58,4 +58,4 @@ dkms.conf
 build/
 
 # Locally cloned third-party dependencies
-# vendored/
+vendored/
