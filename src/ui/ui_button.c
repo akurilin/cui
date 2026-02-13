@@ -8,7 +8,7 @@ static void handle_button_event(ui_element *element, const SDL_Event *event)
 
     if (event->type == SDL_EVENT_MOUSE_BUTTON_DOWN && event->button.button == SDL_BUTTON_LEFT)
     {
-        if (is_point_in_rect(event->button.x, event->button.y, &button->base.rect))
+        if (ui_element_is_point_in_rect(event->button.x, event->button.y, &button->base.rect))
         {
             button->is_pressed = true;
         }
@@ -19,7 +19,7 @@ static void handle_button_event(ui_element *element, const SDL_Event *event)
     {
         const bool was_pressed = button->is_pressed;
         const bool is_inside =
-            is_point_in_rect(event->button.x, event->button.y, &button->base.rect);
+            ui_element_is_point_in_rect(event->button.x, event->button.y, &button->base.rect);
 
         button->is_pressed = false;
         if (was_pressed && is_inside && button->on_click != NULL)
@@ -58,9 +58,9 @@ static const ui_element_ops BUTTON_OPS = {
 };
 
 // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
-ui_button *create_button(const SDL_FRect *rect, SDL_Color up_color, SDL_Color down_color,
-                         SDL_Color border_color, button_click_handler on_click,
-                         void *on_click_context)
+ui_button *ui_button_create(const SDL_FRect *rect, SDL_Color up_color, SDL_Color down_color,
+                            SDL_Color border_color, button_click_handler on_click,
+                            void *on_click_context)
 {
     if (rect == NULL)
     {

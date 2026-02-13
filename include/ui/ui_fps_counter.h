@@ -34,7 +34,7 @@ typedef struct ui_fps_counter
  * Update requirement: ui_context_update must be called each frame with a real
  * delta_seconds value, otherwise FPS output will not be meaningful.
  */
-ui_fps_counter *create_fps_counter(int viewport_width, int viewport_height, float padding,
-                                   SDL_Color color);
+ui_fps_counter *ui_fps_counter_create(int viewport_width, int viewport_height, float padding,
+                                      SDL_Color color);
 
 #endif

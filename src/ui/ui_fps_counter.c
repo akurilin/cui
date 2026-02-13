@@ -59,8 +59,8 @@ static const ui_element_ops FPS_COUNTER_OPS = {
 };
 
 // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
-ui_fps_counter *create_fps_counter(int viewport_width, int viewport_height, float padding,
-                                   SDL_Color color)
+ui_fps_counter *ui_fps_counter_create(int viewport_width, int viewport_height, float padding,
+                                      SDL_Color color)
 {
     if (viewport_width <= 0 || viewport_height <= 0)
     {

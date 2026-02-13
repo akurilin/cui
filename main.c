@@ -95,7 +95,7 @@ int main(void)
         (SDL_Color){COLOR_PANE, COLOR_PANE, COLOR_PANE, COLOR_ALPHA_OPAQUE};
     const SDL_Color pane_border_color =
         (SDL_Color){COLOR_BLACK, COLOR_BLACK, COLOR_BLACK, COLOR_ALPHA_OPAQUE};
-    ui_pane *pane = create_pane(&pane_rect, pane_fill_color, pane_border_color);
+    ui_pane *pane = ui_pane_create(&pane_rect, pane_fill_color, pane_border_color);
 
     const float sidebar_text_x = 24.0F;
     const float sidebar_text_start_y = 40.0F;
@@ -106,12 +106,12 @@ int main(void)
     const char *item_2_label = "item 2";
     const char *item_3_label = "item 3";
     ui_text *item_1 =
-        create_text(sidebar_text_x, sidebar_text_start_y, item_1_label, sidebar_text_color);
-    ui_text *item_2 = create_text(sidebar_text_x, sidebar_text_start_y + sidebar_text_spacing,
-                                  item_2_label, sidebar_text_color);
+        ui_text_create(sidebar_text_x, sidebar_text_start_y, item_1_label, sidebar_text_color);
+    ui_text *item_2 = ui_text_create(sidebar_text_x, sidebar_text_start_y + sidebar_text_spacing,
+                                     item_2_label, sidebar_text_color);
     ui_text *item_3 =
-        create_text(sidebar_text_x, sidebar_text_start_y + sidebar_text_spacing * 2.0F,
-                    item_3_label, sidebar_text_color);
+        ui_text_create(sidebar_text_x, sidebar_text_start_y + sidebar_text_spacing * 2.0F,
+                       item_3_label, sidebar_text_color);
 
     const SDL_FRect button_rect = {
         pane_width + (content_width - 140.0F) / 2.0F,
@@ -128,8 +128,8 @@ int main(void)
     button_click_handler button_click_handler_fn = log_button_press;
     void *button_click_context = NULL;
     ui_button *button =
-        create_button(&button_rect, button_up_color, button_down_color, button_border_color,
-                      button_click_handler_fn, button_click_context);
+        ui_button_create(&button_rect, button_up_color, button_down_color, button_border_color,
+                         button_click_handler_fn, button_click_context);
 
     const int fps_viewport_width = WINDOW_WIDTH;
     const int fps_viewport_height = WINDOW_HEIGHT;
@@ -137,7 +137,7 @@ int main(void)
     const SDL_Color fps_text_color =
         (SDL_Color){COLOR_TEXT, COLOR_TEXT, COLOR_TEXT, COLOR_ALPHA_OPAQUE};
     ui_fps_counter *fps_counter =
-        create_fps_counter(fps_viewport_width, fps_viewport_height, fps_padding, fps_text_color);
+        ui_fps_counter_create(fps_viewport_width, fps_viewport_height, fps_padding, fps_text_color);
 
     if (!add_element_or_fail(&context, (ui_element *)pane) ||
         !add_element_or_fail(&context, (ui_element *)item_1) ||

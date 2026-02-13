@@ -19,6 +19,6 @@ typedef struct ui_pane
  * Why this exists: it provides a reusable container-like visual primitive
  * without requiring ad-hoc draw calls in main render code.
  */
-ui_pane *create_pane(const SDL_FRect *rect, SDL_Color fill_color, SDL_Color border_color);
+ui_pane *ui_pane_create(const SDL_FRect *rect, SDL_Color fill_color, SDL_Color border_color);
 
 #endif

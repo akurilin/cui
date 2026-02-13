@@ -2,13 +2,64 @@
 
 This project attempts to create a UI system built entirely in the C language and leveraging SDL, targeting specifically macOS. It's a learning project to master the fundamentals of UI building and the C language starting from the low level, letting SDL take care of some of the foundations, but taking over the rest of it.
 
-SDL is currently brought in as a locally cloned repository under `vendored/SDL`:
+SDL is brought in as a Git submodule at `vendored/SDL`.
 
-```bash
-git clone https://github.com/libsdl-org/SDL.git vendored/SDL
+## Architecture Overview
+
+The app is split into a tiny application layer (`main.c`) and a reusable UI layer (`include/ui`, `src/ui`).
+
+- `main.c` is composition/root wiring only: create window/renderer, construct UI elements, register them with a `ui_context`, then run the main loop.
+- `ui_context` is the lifecycle owner + dispatcher for all elements.
+- `ui_element` is the common base interface for polymorphism in C.
+
+### UI "Inheritance" Model (C-style)
+
+There is no language-level inheritance in C, so this project uses struct embedding + a virtual function table:
+
+- Every concrete widget embeds `ui_element base;` as its first field.
+- Every concrete widget installs a `ui_element_ops` table (`handle_event`, `update`, `render`, `destroy`).
+- `ui_context` stores all widgets as `ui_element *` and calls the ops table, which gives runtime polymorphism similar to a base-class interface.
+
+Inheritance chain in this project:
+
+```text
+ui_element (base type)
+  -> ui_pane
+  -> ui_button
+  -> ui_text
+  -> ui_fps_counter
 ```
 
-This is not configured as a proper Git submodule right now; it is just a nested Git repository used as a vendored dependency for local builds.
+Key files:
+
+- `include/ui/ui_element.h`, `src/ui/ui_element.c`: base type, virtual ops contract, shared hit-test helper.
+- `include/ui/ui_context.h`, `src/ui/ui_context.c`: dynamic element list, ownership, event/update/render dispatch.
+- `include/ui/ui_pane.h`, `src/ui/ui_pane.c`: rectangle fill + border visual group element.
+- `include/ui/ui_button.h`, `src/ui/ui_button.c`: clickable element with press/release semantics and callback.
+- `include/ui/ui_text.h`, `src/ui/ui_text.c`: static debug-text element.
+- `include/ui/ui_fps_counter.h`, `src/ui/ui_fps_counter.c`: self-updating FPS label anchored to viewport bottom-right.
+
+### Frame/Lifecycle Flow
+
+Per frame, `main.c` drives the UI system in this order:
+
+1. Poll SDL events and forward each to `ui_context_handle_event`.
+2. Call `ui_context_update(delta_seconds)`.
+3. Clear renderer and call `ui_context_render(renderer)`.
+4. Present frame.
+
+`ui_context` behavior rules:
+
+- Dispatch `handle_event` only for `enabled` elements.
+- Dispatch `update` only for `enabled` elements.
+- Dispatch `render` only for `visible` elements.
+- Destroy all registered elements via each element's `destroy` op during `ui_context_destroy`.
+
+### Ownership Rules
+
+- Element constructors (`ui_button_create`, `ui_pane_create`, etc.) allocate on the heap and return ownership to caller.
+- After `ui_context_add` succeeds, ownership transfers to `ui_context`.
+- On failed add, caller remains responsible (see `add_element_or_fail` in `main.c`).
 
 ## Configure and Build:
 ```
@@ -63,4 +114,30 @@ The executable should be in the build directory:
 ```
 cd build
 ./hello
+```
+
+## Submodule workflow
+
+Clone with submodules:
+
+```bash
+git clone --recurse-submodules <repo-url>
+```
+
+If you already cloned the repo:
+
+```bash
+git submodule update --init --recursive
+```
+
+When pulling new commits from this repo, also refresh submodules:
+
+```bash
+git pull --recurse-submodules
+```
+
+If `vendored/SDL` shows as modified and you want to reset it to the commit pinned by this repo:
+
+```bash
+git submodule update --init vendored/SDL
 ```

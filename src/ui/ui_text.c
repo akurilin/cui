@@ -31,7 +31,7 @@ static const ui_element_ops TEXT_OPS = {
     .destroy = destroy_text,
 };
 
-ui_text *create_text(float x, float y, const char *content, SDL_Color color)
+ui_text *ui_text_create(float x, float y, const char *content, SDL_Color color)
 {
     if (content == NULL)
     {

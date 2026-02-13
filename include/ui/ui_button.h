@@ -36,8 +36,8 @@ typedef struct ui_button
  * Returns a heap-allocated button or NULL on allocation/validation failure.
  * Ownership transfers to caller (or ui_context after ui_context_add succeeds).
  */
-ui_button *create_button(const SDL_FRect *rect, SDL_Color up_color, SDL_Color down_color,
-                         SDL_Color border_color, button_click_handler on_click,
-                         void *on_click_context);
+ui_button *ui_button_create(const SDL_FRect *rect, SDL_Color up_color, SDL_Color down_color,
+                            SDL_Color border_color, button_click_handler on_click,
+                            void *on_click_context);
 
 #endif

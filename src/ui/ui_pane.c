@@ -37,7 +37,7 @@ static const ui_element_ops PANE_OPS = {
 };
 
 // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
-ui_pane *create_pane(const SDL_FRect *rect, SDL_Color fill_color, SDL_Color border_color)
+ui_pane *ui_pane_create(const SDL_FRect *rect, SDL_Color fill_color, SDL_Color border_color)
 {
     if (rect == NULL)
     {
