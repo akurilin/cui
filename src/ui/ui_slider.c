@@ -129,11 +129,12 @@ static const ui_element_ops SLIDER_OPS = {
     .destroy = destroy_slider,
 };
 
-// NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
+// NOLINTBEGIN(bugprone-easily-swappable-parameters)
 ui_slider *ui_slider_create(const SDL_FRect *rect, float min_value, float max_value,
                             float initial_value, SDL_Color track_color, SDL_Color thumb_color,
                             SDL_Color active_thumb_color, const SDL_Color *border_color,
                             slider_change_handler on_change, void *on_change_context)
+// NOLINTEND(bugprone-easily-swappable-parameters)
 {
     if (rect == NULL || rect->w <= 0.0F || rect->h <= 0.0F || min_value >= max_value)
     {
