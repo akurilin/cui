@@ -2,13 +2,17 @@
 
 #include <stdlib.h>
 
+// Hit-testing uses SDL3's SDL_PointInRectFloat (from SDL_rect.h) instead of a
+// hand-rolled helper.  SDL handles the inclusive-bounds check for us and stays
+// consistent with any future coordinate-space changes (e.g. logical presentation).
 static void handle_button_event(ui_element *element, const SDL_Event *event)
 {
     ui_button *button = (ui_button *)element;
 
     if (event->type == SDL_EVENT_MOUSE_BUTTON_DOWN && event->button.button == SDL_BUTTON_LEFT)
     {
-        if (ui_element_is_point_in_rect(event->button.x, event->button.y, &button->base.rect))
+        const SDL_FPoint cursor = {event->button.x, event->button.y};
+        if (SDL_PointInRectFloat(&cursor, &button->base.rect))
         {
             button->is_pressed = true;
         }
@@ -18,8 +22,8 @@ static void handle_button_event(ui_element *element, const SDL_Event *event)
     if (event->type == SDL_EVENT_MOUSE_BUTTON_UP && event->button.button == SDL_BUTTON_LEFT)
     {
         const bool was_pressed = button->is_pressed;
-        const bool is_inside =
-            ui_element_is_point_in_rect(event->button.x, event->button.y, &button->base.rect);
+        const SDL_FPoint cursor = {event->button.x, event->button.y};
+        const bool is_inside = SDL_PointInRectFloat(&cursor, &button->base.rect);
 
         button->is_pressed = false;
         if (was_pressed && is_inside && button->on_click != NULL)

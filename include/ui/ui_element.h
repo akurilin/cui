@@ -61,12 +61,4 @@ struct ui_element
     bool enabled;
 };
 
-/*
- * Return true when the point is inside rect (inclusive bounds).
- *
- * Why this helper exists: hit-testing is reused by multiple controls
- * (for example, buttons) and should stay consistent across widgets.
- */
-bool ui_element_is_point_in_rect(float cursor_x, float cursor_y, const SDL_FRect *rect);
-
 #endif

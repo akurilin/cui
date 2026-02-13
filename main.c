@@ -73,8 +73,14 @@ int main(void)
 
     // Create a native OS window. Doing this before renderer creation matters:
     // the renderer needs a target window/surface to present into.
+    //
+    // SDL_WINDOW_HIGH_PIXEL_DENSITY requests a full-resolution framebuffer on
+    // HiDPI/Retina displays.  Without this flag the OS upscales a 1x buffer,
+    // producing visibly blurry text and edges.  The logical-to-physical mapping
+    // is handled later by SDL_SetRenderLogicalPresentation so that all layout
+    // code can keep using WINDOW_WIDTH x WINDOW_HEIGHT coordinates.
     const char *window_title = "SDL Button Demo";
-    const int window_flags = 0;
+    const int window_flags = SDL_WINDOW_HIGH_PIXEL_DENSITY;
     SDL_Window *window = SDL_CreateWindow(window_title, WINDOW_WIDTH, WINDOW_HEIGHT, window_flags);
     if (window == NULL)
     {
@@ -87,8 +93,9 @@ int main(void)
     // for predictable startup behavior across systems.
     SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
 
-    // Create a renderer bound to the window. The renderer is the drawing backend
-    // abstraction (GPU/driver selected by SDL).
+    // Create a renderer bound to the window. Passing NULL for the driver name
+    // lets SDL pick the best available backend — Metal on macOS, Direct3D on
+    // Windows, Vulkan/OpenGL on Linux.
     SDL_Renderer *renderer = SDL_CreateRenderer(window, NULL);
     if (renderer == NULL)
     {
@@ -97,6 +104,19 @@ int main(void)
         SDL_Quit();
         return 1;
     }
+
+    // Enable vertical sync so the renderer presents at the display's refresh
+    // rate.  Without this the main loop would spin uncapped, wasting CPU/GPU.
+    SDL_SetRenderVSync(renderer, 1);
+
+    // With SDL_WINDOW_HIGH_PIXEL_DENSITY the actual framebuffer may be larger
+    // than the requested window size (e.g. 2048x1536 on a 2x Retina display).
+    // Logical presentation maps our WINDOW_WIDTH x WINDOW_HEIGHT coordinate
+    // space onto that larger buffer, so every drawing call and mouse event
+    // continues to use the same logical units while SDL handles the scaling.
+    // LETTERBOX preserves the aspect ratio and adds black bars if needed.
+    SDL_SetRenderLogicalPresentation(renderer, WINDOW_WIDTH, WINDOW_HEIGHT,
+                                     SDL_LOGICAL_PRESENTATION_LETTERBOX);
 
     // This demo expects a visible cursor for button interaction.
     // Failure is non-fatal, so we warn and continue.
@@ -203,10 +223,11 @@ int main(void)
         return 1;
     }
 
-    // High-resolution timer setup for frame delta time computation.
-    // `SDL_GetPerformanceFrequency` gives counter ticks per second.
-    const Uint64 performance_frequency = SDL_GetPerformanceFrequency();
-    Uint64 previous_counter = SDL_GetPerformanceCounter();
+    // High-resolution timer for frame delta time.  SDL_GetTicksNS (SDL 3)
+    // returns nanoseconds since SDL_Init; SDL_NS_PER_SECOND (= 1 000 000 000)
+    // converts the elapsed delta to seconds.  This replaces the older
+    // SDL_GetPerformanceCounter / SDL_GetPerformanceFrequency pattern.
+    Uint64 previous_ns = SDL_GetTicksNS();
 
     // Main frame loop (a standard real-time app/game loop):
     // 1) measure elapsed time since previous frame
@@ -219,10 +240,9 @@ int main(void)
     {
         // Delta time lets update logic remain frame-rate independent.
         // Faster/slower machines still simulate time consistently.
-        const Uint64 current_counter = SDL_GetPerformanceCounter();
-        const float delta_seconds =
-            (float)(current_counter - previous_counter) / (float)performance_frequency;
-        previous_counter = current_counter;
+        const Uint64 current_ns = SDL_GetTicksNS();
+        const float delta_seconds = (float)(current_ns - previous_ns) / (float)SDL_NS_PER_SECOND;
+        previous_ns = current_ns;
 
         // Event pump:
         // - Pulls pending events from SDL's internal queue
