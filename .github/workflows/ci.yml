@@ -29,7 +29,8 @@ jobs:
             libgl-dev libgles-dev libegl-dev \
             libdbus-1-dev libibus-1.0-dev \
             libasound2-dev libpulse-dev \
-            libudev-dev libdecor-0-dev libxkbcommon-dev
+            libudev-dev libdecor-0-dev libxkbcommon-dev \
+            libxtst-dev libxfixes-dev
 
       - name: Check formatting
         run: make format-check
