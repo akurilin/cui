@@ -53,7 +53,7 @@ bool ui_context_add(ui_context *context, ui_element *element)
     {
         size_t new_capacity = context->element_capacity == 0 ? 8U : context->element_capacity * 2U;
         ui_element **new_elements =
-            (ui_element **)realloc((void *)context->elements, new_capacity * sizeof(*new_elements));
+            (ui_element **)realloc((void *)context->elements, new_capacity * sizeof(ui_element *));
         if (new_elements == NULL)
         {
             return false;
