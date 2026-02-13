@@ -18,7 +18,8 @@ typedef struct ui_element ui_element;
  * Why this exists: C has no inheritance, so each concrete control provides this
  * operations table to opt into common event/update/render/destroy flows.
  */
-typedef struct ui_element_ops {
+typedef struct ui_element_ops
+{
     /*
      * Process one SDL event for this element.
      * Called only when the element is enabled.
@@ -52,7 +53,8 @@ typedef struct ui_element_ops {
  * - visible: participates in render pass when true
  * - enabled: participates in event/update passes when true
  */
-struct ui_element {
+struct ui_element
+{
     SDL_FRect rect;
     const ui_element_ops *ops;
     bool visible;

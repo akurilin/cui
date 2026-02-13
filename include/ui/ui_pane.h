@@ -6,7 +6,8 @@
 /*
  * Simple rectangular background/border element used to visually group content.
  */
-typedef struct ui_pane {
+typedef struct ui_pane
+{
     ui_element base;
     SDL_Color fill_color;
     SDL_Color border_color;

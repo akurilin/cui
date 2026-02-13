@@ -11,7 +11,8 @@
  * Why this exists: centralizing event dispatch, update, and render keeps main
  * loops simple and ensures controls are processed consistently.
  */
-typedef struct ui_context {
+typedef struct ui_context
+{
     ui_element **elements;
     size_t element_count;
     size_t element_capacity;

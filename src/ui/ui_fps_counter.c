@@ -7,7 +7,8 @@
 static const float DEBUG_GLYPH_WIDTH = 8.0F;
 static const float DEBUG_GLYPH_HEIGHT = 8.0F;
 
-static void update_fps_label(ui_fps_counter *counter) {
+static void update_fps_label(ui_fps_counter *counter)
+{
     snprintf(counter->label, sizeof(counter->label), "FPS: %.1f", counter->displayed_fps);
 
     const float label_width = (float)strlen(counter->label) * DEBUG_GLYPH_WIDTH;
@@ -15,19 +16,22 @@ static void update_fps_label(ui_fps_counter *counter) {
     counter->base.rect.y = (float)counter->viewport_height - counter->padding - DEBUG_GLYPH_HEIGHT;
 }
 
-static void handle_fps_counter_event(ui_element *element, const SDL_Event *event) {
+static void handle_fps_counter_event(ui_element *element, const SDL_Event *event)
+{
     (void)element;
     (void)event;
 }
 
-static void update_fps_counter(ui_element *element, float delta_seconds) {
+static void update_fps_counter(ui_element *element, float delta_seconds)
+{
     ui_fps_counter *counter = (ui_fps_counter *)element;
 
     counter->elapsed_seconds += delta_seconds;
     counter->frame_count += 1;
 
     if (counter->elapsed_seconds >= counter->update_interval_seconds &&
-        counter->elapsed_seconds > 0.0F) {
+        counter->elapsed_seconds > 0.0F)
+    {
         counter->displayed_fps = (float)counter->frame_count / counter->elapsed_seconds;
         counter->elapsed_seconds = 0.0F;
         counter->frame_count = 0;
@@ -36,7 +40,8 @@ static void update_fps_counter(ui_element *element, float delta_seconds) {
     update_fps_label(counter);
 }
 
-static void render_fps_counter(const ui_element *element, SDL_Renderer *renderer) {
+static void render_fps_counter(const ui_element *element, SDL_Renderer *renderer)
+{
     const ui_fps_counter *counter = (const ui_fps_counter *)element;
 
     SDL_SetRenderDrawColor(renderer, counter->color.r, counter->color.g, counter->color.b,
@@ -55,13 +60,16 @@ static const ui_element_ops FPS_COUNTER_OPS = {
 
 // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
 ui_fps_counter *create_fps_counter(int viewport_width, int viewport_height, float padding,
-                                   SDL_Color color) {
-    if (viewport_width <= 0 || viewport_height <= 0) {
+                                   SDL_Color color)
+{
+    if (viewport_width <= 0 || viewport_height <= 0)
+    {
         return NULL;
     }
 
     ui_fps_counter *counter = malloc(sizeof(*counter));
-    if (counter == NULL) {
+    if (counter == NULL)
+    {
         return NULL;
     }
 

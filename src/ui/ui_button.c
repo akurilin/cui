@@ -2,34 +2,41 @@
 
 #include <stdlib.h>
 
-static void handle_button_event(ui_element *element, const SDL_Event *event) {
+static void handle_button_event(ui_element *element, const SDL_Event *event)
+{
     ui_button *button = (ui_button *)element;
 
-    if (event->type == SDL_EVENT_MOUSE_BUTTON_DOWN && event->button.button == SDL_BUTTON_LEFT) {
-        if (is_point_in_rect(event->button.x, event->button.y, &button->base.rect)) {
+    if (event->type == SDL_EVENT_MOUSE_BUTTON_DOWN && event->button.button == SDL_BUTTON_LEFT)
+    {
+        if (is_point_in_rect(event->button.x, event->button.y, &button->base.rect))
+        {
             button->is_pressed = true;
         }
         return;
     }
 
-    if (event->type == SDL_EVENT_MOUSE_BUTTON_UP && event->button.button == SDL_BUTTON_LEFT) {
+    if (event->type == SDL_EVENT_MOUSE_BUTTON_UP && event->button.button == SDL_BUTTON_LEFT)
+    {
         const bool was_pressed = button->is_pressed;
         const bool is_inside =
             is_point_in_rect(event->button.x, event->button.y, &button->base.rect);
 
         button->is_pressed = false;
-        if (was_pressed && is_inside && button->on_click != NULL) {
+        if (was_pressed && is_inside && button->on_click != NULL)
+        {
             button->on_click(button->on_click_context);
         }
     }
 }
 
-static void update_button(ui_element *element, float delta_seconds) {
+static void update_button(ui_element *element, float delta_seconds)
+{
     (void)element;
     (void)delta_seconds;
 }
 
-static void render_button(const ui_element *element, SDL_Renderer *renderer) {
+static void render_button(const ui_element *element, SDL_Renderer *renderer)
+{
     const ui_button *button = (const ui_button *)element;
     const SDL_Color fill_color = button->is_pressed ? button->down_color : button->up_color;
 
@@ -53,13 +60,16 @@ static const ui_element_ops BUTTON_OPS = {
 // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
 ui_button *create_button(const SDL_FRect *rect, SDL_Color up_color, SDL_Color down_color,
                          SDL_Color border_color, button_click_handler on_click,
-                         void *on_click_context) {
-    if (rect == NULL) {
+                         void *on_click_context)
+{
+    if (rect == NULL)
+    {
         return NULL;
     }
 
     ui_button *button = malloc(sizeof(*button));
-    if (button == NULL) {
+    if (button == NULL)
+    {
         return NULL;
     }
 

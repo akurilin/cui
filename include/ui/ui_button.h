@@ -13,7 +13,8 @@ typedef void (*button_click_handler)(void *context);
 /*
  * Clickable rectangular control with pressed/unpressed visuals.
  */
-typedef struct ui_button {
+typedef struct ui_button
+{
     ui_element base;
     SDL_Color up_color;
     SDL_Color down_color;

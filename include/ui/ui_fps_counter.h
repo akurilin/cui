@@ -9,7 +9,8 @@
  * Why this exists: it provides built-in performance feedback during UI iteration
  * without adding manual timing code to each app screen.
  */
-typedef struct ui_fps_counter {
+typedef struct ui_fps_counter
+{
     ui_element base;
     SDL_Color color;
     int viewport_width;

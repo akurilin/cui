@@ -6,7 +6,8 @@
 /*
  * Lightweight text element rendered with SDL_RenderDebugText.
  */
-typedef struct ui_text {
+typedef struct ui_text
+{
     ui_element base;
     SDL_Color color;
     const char *content;

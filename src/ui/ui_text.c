@@ -2,17 +2,20 @@
 
 #include <stdlib.h>
 
-static void handle_text_event(ui_element *element, const SDL_Event *event) {
+static void handle_text_event(ui_element *element, const SDL_Event *event)
+{
     (void)element;
     (void)event;
 }
 
-static void update_text(ui_element *element, float delta_seconds) {
+static void update_text(ui_element *element, float delta_seconds)
+{
     (void)element;
     (void)delta_seconds;
 }
 
-static void render_text(const ui_element *element, SDL_Renderer *renderer) {
+static void render_text(const ui_element *element, SDL_Renderer *renderer)
+{
     const ui_text *text = (const ui_text *)element;
 
     SDL_SetRenderDrawColor(renderer, text->color.r, text->color.g, text->color.b, text->color.a);
@@ -28,13 +31,16 @@ static const ui_element_ops TEXT_OPS = {
     .destroy = destroy_text,
 };
 
-ui_text *create_text(float x, float y, const char *content, SDL_Color color) {
-    if (content == NULL) {
+ui_text *create_text(float x, float y, const char *content, SDL_Color color)
+{
+    if (content == NULL)
+    {
         return NULL;
     }
 
     ui_text *text = malloc(sizeof(*text));
-    if (text == NULL) {
+    if (text == NULL)
+    {
         return NULL;
     }
 

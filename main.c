@@ -23,15 +23,19 @@ static const Uint8 COLOR_BLACK = 0;
 static const Uint8 COLOR_TEXT = 235;
 static const Uint8 COLOR_ALPHA_OPAQUE = 255;
 
-static void log_button_press(void *context) {
+static void log_button_press(void *context)
+{
     (void)context;
     printf("button pressed\n");
     fflush(stdout);
 }
 
-static bool add_element_or_fail(ui_context *context, ui_element *element) {
-    if (!ui_context_add(context, element)) {
-        if (element != NULL && element->ops != NULL && element->ops->destroy != NULL) {
+static bool add_element_or_fail(ui_context *context, ui_element *element)
+{
+    if (!ui_context_add(context, element))
+    {
+        if (element != NULL && element->ops != NULL && element->ops->destroy != NULL)
+        {
             element->ops->destroy(element);
         }
         return false;
@@ -40,8 +44,10 @@ static bool add_element_or_fail(ui_context *context, ui_element *element) {
 }
 
 // Program entry point. `void` means this program expects no command-line args.
-int main(void) {
-    if (!SDL_Init(SDL_INIT_VIDEO)) {
+int main(void)
+{
+    if (!SDL_Init(SDL_INIT_VIDEO))
+    {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_Init failed: %s", SDL_GetError());
         return 1;
     }
@@ -49,7 +55,8 @@ int main(void) {
     const char *window_title = "SDL Button Demo";
     const int window_flags = 0;
     SDL_Window *window = SDL_CreateWindow(window_title, WINDOW_WIDTH, WINDOW_HEIGHT, window_flags);
-    if (window == NULL) {
+    if (window == NULL)
+    {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_CreateWindow failed: %s", SDL_GetError());
         SDL_Quit();
         return 1;
@@ -57,19 +64,22 @@ int main(void) {
     SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
 
     SDL_Renderer *renderer = SDL_CreateRenderer(window, NULL);
-    if (renderer == NULL) {
+    if (renderer == NULL)
+    {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_CreateRenderer failed: %s", SDL_GetError());
         SDL_DestroyWindow(window);
         SDL_Quit();
         return 1;
     }
 
-    if (!SDL_ShowCursor()) {
+    if (!SDL_ShowCursor())
+    {
         SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "SDL_ShowCursor failed: %s", SDL_GetError());
     }
 
     ui_context context;
-    if (!ui_context_init(&context)) {
+    if (!ui_context_init(&context))
+    {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "ui_context_init failed");
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
@@ -134,7 +144,8 @@ int main(void) {
         !add_element_or_fail(&context, (ui_element *)item_2) ||
         !add_element_or_fail(&context, (ui_element *)item_3) ||
         !add_element_or_fail(&context, (ui_element *)button) ||
-        !add_element_or_fail(&context, (ui_element *)fps_counter)) {
+        !add_element_or_fail(&context, (ui_element *)fps_counter))
+    {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create or register UI elements");
         ui_context_destroy(&context);
         SDL_DestroyRenderer(renderer);
@@ -147,15 +158,18 @@ int main(void) {
     Uint64 previous_counter = SDL_GetPerformanceCounter();
 
     bool running = true;
-    while (running) {
+    while (running)
+    {
         const Uint64 current_counter = SDL_GetPerformanceCounter();
         const float delta_seconds =
             (float)(current_counter - previous_counter) / (float)performance_frequency;
         previous_counter = current_counter;
 
         SDL_Event event;
-        while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_EVENT_QUIT) {
+        while (SDL_PollEvent(&event))
+        {
+            if (event.type == SDL_EVENT_QUIT)
+            {
                 running = false;
                 continue;
             }
