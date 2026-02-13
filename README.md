@@ -2,7 +2,8 @@
 
 This project attempts to create a UI system built entirely in the C language and leveraging SDL, targeting specifically macOS. It's a learning project to master the fundamentals of UI building and the C language starting from the low level, letting SDL take care of some of the foundations, but taking over the rest of it.
 
-SDL is brought in as a Git submodule at `vendored/SDL`.
+SDL and SDL_image are brought in as Git submodules at `vendored/SDL` and
+`vendored/SDL_image`.
 
 ## Architecture Overview
 
@@ -26,17 +27,23 @@ Inheritance chain in this project:
 ui_element (base type)
   -> ui_pane
   -> ui_button
+  -> ui_checkbox
   -> ui_text
+  -> ui_image
+  -> ui_slider
   -> ui_fps_counter
 ```
 
 Key files:
 
-- `include/ui/ui_element.h`, `src/ui/ui_element.c`: base type, virtual ops contract, shared hit-test helper.
+- `include/ui/ui_element.h`, `src/ui/ui_element.c`: base type, virtual ops contract, and shared border helpers.
 - `include/ui/ui_context.h`, `src/ui/ui_context.c`: dynamic element list, ownership, event/update/render dispatch.
 - `include/ui/ui_pane.h`, `src/ui/ui_pane.c`: rectangle fill + border visual group element.
 - `include/ui/ui_button.h`, `src/ui/ui_button.c`: clickable element with press/release semantics and callback.
+- `include/ui/ui_checkbox.h`, `src/ui/ui_checkbox.c`: labeled toggle control with boolean change callback.
 - `include/ui/ui_text.h`, `src/ui/ui_text.c`: static debug-text element.
+- `include/ui/ui_image.h`, `src/ui/ui_image.c`: image element with fallback texture behavior.
+- `include/ui/ui_slider.h`, `src/ui/ui_slider.c`: horizontal slider with min/max range and value callback.
 - `include/ui/ui_fps_counter.h`, `src/ui/ui_fps_counter.c`: self-updating FPS label anchored to viewport bottom-right.
 
 ### Frame/Lifecycle Flow
@@ -70,9 +77,9 @@ cmake --build build
 ## Makefile shortcuts:
 ```
 make build    # configure + build
-make run      # build + run ./build/hello
+make run      # build + run ./build/Debug/hello
 make clean    # remove build directory
-make format   # apply clang-format to main.c
+make format   # apply clang-format to non-vendored .c/.h files
 make lint     # run clang-tidy checks
 make analyze  # run Clang Static Analyzer via scan-build
 make precommit # run all commit-gating checks
@@ -109,11 +116,10 @@ export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
 ```
 
 ## Run:
-The executable should be in the build directory:
+The executable is generated under the build configuration directory:
 
 ```
-cd build
-./hello
+./build/Debug/hello
 ```
 
 ## Submodule workflow
@@ -136,8 +142,8 @@ When pulling new commits from this repo, also refresh submodules:
 git pull --recurse-submodules
 ```
 
-If `vendored/SDL` shows as modified and you want to reset it to the commit pinned by this repo:
+If submodules show as modified and you want to reset them to the commits pinned by this repo:
 
 ```bash
-git submodule update --init vendored/SDL
+git submodule update --init vendored/SDL vendored/SDL_image
 ```
