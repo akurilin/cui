@@ -25,6 +25,7 @@ static const float TASK_LIST_HEIGHT = 304.0F;
 
 typedef struct todo_task
 {
+    // Stable identity used for display and future task-level references.
     uint64_t id;
     char *title;
     char due_time[6];
@@ -46,6 +47,7 @@ struct todo_controller
     todo_task *tasks;
     size_t task_count;
     size_t task_capacity;
+    // Monotonic ID source so IDs are assigned once at creation time.
     uint64_t next_task_id;
     delete_button_context *delete_contexts;
     size_t delete_context_capacity;
@@ -150,6 +152,7 @@ static bool does_task_match_filter(const todo_controller *controller, const todo
         return false;
     }
 
+    // Filter index mapping follows the segment labels order: ALL/ACTIVE/DONE.
     switch (controller->selected_filter_index)
     {
     case 1U:
@@ -247,6 +250,7 @@ static void handle_task_checkbox_change(bool checked, void *context)
     }
 
     controller->tasks[check_context->task_index].is_done = checked;
+    // Rebuild so filters, row visibility, and summary text stay in sync.
     if (!rebuild_task_rows(controller))
     {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to rebuild rows after toggle");
@@ -262,6 +266,7 @@ static bool add_task_row(todo_controller *controller, size_t index)
 
     const todo_task *task = &controller->tasks[index];
     char row_number[20];
+    // Render the task's stable ID, not the current row position.
     SDL_snprintf(row_number, sizeof(row_number), "%llu", (unsigned long long)task->id);
 
     ui_layout_container *row = ui_layout_container_create(
@@ -397,6 +402,7 @@ static bool append_task(todo_controller *controller, const char *title, const ch
     }
 
     todo_task *task = &controller->tasks[controller->task_count];
+    // Prevent wraparound so IDs remain unique for the app lifetime.
     if (controller->next_task_id == UINT64_MAX)
     {
         free(task_title);
@@ -458,6 +464,7 @@ static void fill_current_time(char *buffer, size_t buffer_size)
 
 static uint32_t next_pseudo_random_u32(void)
 {
+    // Use a tiny local PRNG instead of rand() to satisfy lint policy.
     static uint64_t state = 0U;
 
     if (state == 0U)
@@ -694,6 +701,7 @@ int main(void)
     ui_scroll_view *rows_scroll_view = NULL;
     if (rows_container != NULL)
     {
+        // Scroll view owns the rows container and clips overflowing rows to the frame.
         rows_scroll_view =
             ui_scroll_view_create(&(SDL_FRect){36.0F, 306.0F, 952.0F, TASK_LIST_HEIGHT},
                                   (ui_element *)rows_container, 24.0F, NULL);
@@ -769,6 +777,8 @@ int main(void)
         return 1;
     }
 
+    // Callback contexts are wired after construction succeeds so we never
+    // dereference NULL UI pointers while setting them.
     task_input->on_submit_context = &controller;
     add_button->on_click_context = &controller;
     filter_group->on_change_context = &controller;
