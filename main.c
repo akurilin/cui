@@ -3,22 +3,29 @@
 #include "ui/ui_button.h"
 #include "ui/ui_checkbox.h"
 #include "ui/ui_context.h"
+#include "ui/ui_fps_counter.h"
 #include "ui/ui_hrule.h"
 #include "ui/ui_layout_container.h"
 #include "ui/ui_pane.h"
+#include "ui/ui_scroll_view.h"
 #include "ui/ui_segment_group.h"
 #include "ui/ui_text.h"
 #include "ui/ui_text_input.h"
 
+#include <ctype.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 static const int WINDOW_WIDTH = 1024;
 static const int WINDOW_HEIGHT = 768;
+static const float TASK_LIST_HEIGHT = 304.0F;
 
 typedef struct todo_task
 {
+    uint64_t id;
     char *title;
     char due_time[6];
     bool is_done;
@@ -39,12 +46,15 @@ struct todo_controller
     todo_task *tasks;
     size_t task_count;
     size_t task_capacity;
+    uint64_t next_task_id;
     delete_button_context *delete_contexts;
     size_t delete_context_capacity;
 
     ui_layout_container *rows_container;
     ui_text *stats_text;
     ui_text *remaining_text;
+    ui_text_input *task_input;
+    size_t selected_filter_index;
 
     SDL_Color color_ink;
     SDL_Color color_muted;
@@ -133,6 +143,25 @@ static bool update_task_summary(todo_controller *controller)
 
 static bool rebuild_task_rows(todo_controller *controller);
 
+static bool does_task_match_filter(const todo_controller *controller, const todo_task *task)
+{
+    if (controller == NULL || task == NULL)
+    {
+        return false;
+    }
+
+    switch (controller->selected_filter_index)
+    {
+    case 1U:
+        return !task->is_done;
+    case 2U:
+        return task->is_done;
+    case 0U:
+    default:
+        return true;
+    }
+}
+
 static bool ensure_delete_context_capacity(todo_controller *controller)
 {
     if (controller == NULL)
@@ -203,6 +232,27 @@ static void handle_delete_button_click(void *context)
     }
 }
 
+static void handle_task_checkbox_change(bool checked, void *context)
+{
+    delete_button_context *check_context = (delete_button_context *)context;
+    if (check_context == NULL || check_context->controller == NULL)
+    {
+        return;
+    }
+
+    todo_controller *controller = check_context->controller;
+    if (check_context->task_index >= controller->task_count)
+    {
+        return;
+    }
+
+    controller->tasks[check_context->task_index].is_done = checked;
+    if (!rebuild_task_rows(controller))
+    {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to rebuild rows after toggle");
+    }
+}
+
 static bool add_task_row(todo_controller *controller, size_t index)
 {
     if (controller == NULL || controller->rows_container == NULL || index >= controller->task_count)
@@ -211,8 +261,8 @@ static bool add_task_row(todo_controller *controller, size_t index)
     }
 
     const todo_task *task = &controller->tasks[index];
-    char row_number[8];
-    SDL_snprintf(row_number, sizeof(row_number), "%02u", (unsigned)(index + 1U));
+    char row_number[20];
+    SDL_snprintf(row_number, sizeof(row_number), "%llu", (unsigned long long)task->id);
 
     ui_layout_container *row = ui_layout_container_create(
         &(SDL_FRect){0.0F, 0.0F, 0.0F, 32.0F}, UI_LAYOUT_AXIS_HORIZONTAL, &controller->color_ink);
@@ -224,7 +274,7 @@ static bool add_task_row(todo_controller *controller, size_t index)
     ui_text *number = ui_text_create(0.0F, 0.0F, row_number, controller->color_muted, NULL);
     if (number != NULL)
     {
-        number->base.rect.w = 40.0F;
+        number->base.rect.w = 56.0F;
     }
     if (!add_child_or_fail(row, (ui_element *)number))
     {
@@ -232,9 +282,13 @@ static bool add_task_row(todo_controller *controller, size_t index)
         return false;
     }
 
-    ui_checkbox *check =
-        ui_checkbox_create(0.0F, 0.0F, "", controller->color_ink, controller->color_ink,
-                           controller->color_ink, task->is_done, NULL, NULL, NULL);
+    delete_button_context *row_context = &controller->delete_contexts[index];
+    row_context->controller = controller;
+    row_context->task_index = index;
+
+    ui_checkbox *check = ui_checkbox_create(
+        0.0F, 0.0F, "", controller->color_ink, controller->color_ink, controller->color_ink,
+        task->is_done, handle_task_checkbox_change, row_context, NULL);
     if (check != NULL)
     {
         check->base.rect.w = 32.0F;
@@ -267,13 +321,10 @@ static bool add_task_row(todo_controller *controller, size_t index)
         return false;
     }
 
-    delete_button_context *delete_context = &controller->delete_contexts[index];
-    delete_context->controller = controller;
-    delete_context->task_index = index;
     ui_button *remove =
         ui_button_create(&(SDL_FRect){0.0F, 0.0F, 96.0F, 24.0F}, controller->color_ink,
                          controller->color_button_down, "DELETE", &controller->color_ink,
-                         handle_delete_button_click, delete_context);
+                         handle_delete_button_click, row_context);
     if (!add_child_or_fail(row, (ui_element *)remove))
     {
         row->base.ops->destroy((ui_element *)row);
@@ -304,6 +355,11 @@ static bool rebuild_task_rows(todo_controller *controller)
 
     for (size_t i = 0; i < controller->task_count; ++i)
     {
+        if (!does_task_match_filter(controller, &controller->tasks[i]))
+        {
+            continue;
+        }
+
         if (!add_task_row(controller, i))
         {
             return false;
@@ -341,11 +397,119 @@ static bool append_task(todo_controller *controller, const char *title, const ch
     }
 
     todo_task *task = &controller->tasks[controller->task_count];
+    if (controller->next_task_id == UINT64_MAX)
+    {
+        free(task_title);
+        return false;
+    }
+
+    task->id = controller->next_task_id;
+    controller->next_task_id++;
     task->title = task_title;
     SDL_snprintf(task->due_time, sizeof(task->due_time), "%s", due_time);
     task->is_done = is_done;
     controller->task_count++;
     return true;
+}
+
+static void format_header_datetime(char *buffer, size_t buffer_size)
+{
+    if (buffer == NULL || buffer_size == 0U)
+    {
+        return;
+    }
+
+    const time_t now = time(NULL);
+    struct tm local_tm;
+#if defined(_WIN32)
+    localtime_s(&local_tm, &now);
+#else
+    localtime_r(&now, &local_tm);
+#endif
+
+    if (strftime(buffer, buffer_size, "%a, %b %d, %Y %H:%M:%S", &local_tm) == 0U)
+    {
+        buffer[0] = '\0';
+        return;
+    }
+
+    for (size_t i = 0; buffer[i] != '\0'; ++i)
+    {
+        buffer[i] = (char)toupper((unsigned char)buffer[i]);
+    }
+}
+
+static void fill_current_time(char *buffer, size_t buffer_size)
+{
+    if (buffer == NULL || buffer_size < 6U)
+    {
+        return;
+    }
+
+    const time_t now = time(NULL);
+    struct tm local_tm;
+#if defined(_WIN32)
+    localtime_s(&local_tm, &now);
+#else
+    localtime_r(&now, &local_tm);
+#endif
+    strftime(buffer, buffer_size, "%H:%M", &local_tm);
+}
+
+static uint32_t next_pseudo_random_u32(void)
+{
+    static uint64_t state = 0U;
+
+    if (state == 0U)
+    {
+        state = ((uint64_t)time(NULL) << 32U) ^ SDL_GetTicksNS();
+        if (state == 0U)
+        {
+            state = 0x9e3779b97f4a7c15ULL;
+        }
+    }
+
+    state ^= state << 13U;
+    state ^= state >> 7U;
+    state ^= state << 17U;
+    return (uint32_t)(state >> 32U);
+}
+
+static void fill_random_time(char *buffer, size_t buffer_size)
+{
+    if (buffer == NULL || buffer_size < 6U)
+    {
+        return;
+    }
+
+    const int hour = (int)(next_pseudo_random_u32() % 24U);
+    const int minute = (int)(next_pseudo_random_u32() % 60U);
+    SDL_snprintf(buffer, buffer_size, "%02d:%02d", hour, minute);
+}
+
+static bool add_task_from_input(todo_controller *controller)
+{
+    if (controller == NULL || controller->task_input == NULL)
+    {
+        return false;
+    }
+
+    const char *input_value = ui_text_input_get_value(controller->task_input);
+    if (input_value == NULL || input_value[0] == '\0')
+    {
+        return true;
+    }
+
+    char due_time[6] = "00:00";
+    fill_current_time(due_time, sizeof(due_time));
+
+    if (!append_task(controller, input_value, due_time, false))
+    {
+        return false;
+    }
+
+    ui_text_input_clear(controller->task_input);
+    return rebuild_task_rows(controller);
 }
 
 static void clear_all_tasks(todo_controller *controller)
@@ -398,6 +562,43 @@ static void destroy_task_storage(todo_controller *controller)
 static void handle_clear_button_click(void *context)
 {
     clear_all_tasks((todo_controller *)context);
+}
+
+static void handle_add_button_click(void *context)
+{
+    todo_controller *controller = (todo_controller *)context;
+    if (controller == NULL)
+    {
+        return;
+    }
+
+    if (!add_task_from_input(controller))
+    {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to add task from input");
+    }
+}
+
+static void handle_task_input_submit(const char *value, void *context)
+{
+    (void)value;
+    handle_add_button_click(context);
+}
+
+static void handle_filter_change(size_t selected_index, const char *selected_label, void *context)
+{
+    (void)selected_label;
+
+    todo_controller *controller = (todo_controller *)context;
+    if (controller == NULL)
+    {
+        return;
+    }
+
+    controller->selected_filter_index = selected_index;
+    if (!rebuild_task_rows(controller))
+    {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to rebuild rows after filter change");
+    }
 }
 
 int main(void)
@@ -457,8 +658,9 @@ int main(void)
 
     ui_text *title =
         ui_text_create(58.0F, 64.0F, "TODO TASK MANAGEMENT SYSTEM V0.1", color_ink, NULL);
-    ui_text *date_text = ui_text_create(740.0F, 64.0F, "SAT, FEB 14, 2026", color_muted, NULL);
-    ui_text *clock_text = ui_text_create(868.0F, 64.0F, "12:24:24", color_muted, NULL);
+    char header_datetime[40];
+    format_header_datetime(header_datetime, sizeof(header_datetime));
+    ui_text *datetime_text = ui_text_create(740.0F, 64.0F, header_datetime, color_muted, NULL);
 
     ui_pane *icon_cell =
         ui_pane_create(&(SDL_FRect){36.0F, 140.0F, 56.0F, 64.0F}, color_panel, &color_ink);
@@ -466,28 +668,36 @@ int main(void)
 
     ui_text_input *task_input = ui_text_input_create(
         &(SDL_FRect){92.0F, 140.0F, 780.0F, 64.0F}, color_muted, color_panel, color_ink, color_ink,
-        "enter task...", color_muted, window, NULL, NULL);
+        "enter task...", color_muted, window, handle_task_input_submit, NULL);
     ui_button *add_button =
         ui_button_create(&(SDL_FRect){872.0F, 140.0F, 116.0F, 64.0F}, color_button_dark,
-                         color_button_down, "ADD", &color_ink, NULL, NULL);
+                         color_button_down, "ADD", &color_ink, handle_add_button_click, NULL);
 
     ui_text *stats_text = ui_text_create(36.0F, 244.0F, "0 ACTIVE - 0 DONE", color_ink, NULL);
 
     const char *filter_labels[] = {"ALL", "ACTIVE", "DONE"};
-    ui_segment_group *filter_group = ui_segment_group_create(
-        &(SDL_FRect){716.0F, 244.0F, 272.0F, 40.0F}, filter_labels, 3U, 0U, color_panel,
-        color_button_dark, color_button_down, color_muted, color_panel, &color_ink, NULL, NULL);
+    ui_segment_group *filter_group =
+        ui_segment_group_create(&(SDL_FRect){716.0F, 244.0F, 272.0F, 40.0F}, filter_labels, 3U, 0U,
+                                color_panel, color_button_dark, color_button_down, color_muted,
+                                color_panel, &color_ink, handle_filter_change, NULL);
     ui_hrule *top_rule = ui_hrule_create(1.0F, color_ink, 0.0F);
     if (top_rule != NULL)
     {
         top_rule->base.rect = (SDL_FRect){36.0F, 300.0F, 952.0F, 1.0F};
     }
 
-    ui_pane *list_frame =
-        ui_pane_create(&(SDL_FRect){36.0F, 306.0F, 952.0F, 286.0F}, color_panel, &color_ink);
+    ui_pane *list_frame = ui_pane_create(&(SDL_FRect){36.0F, 306.0F, 952.0F, TASK_LIST_HEIGHT},
+                                         color_panel, &color_ink);
 
     ui_layout_container *rows_container = ui_layout_container_create(
-        &(SDL_FRect){36.0F, 306.0F, 952.0F, 286.0F}, UI_LAYOUT_AXIS_VERTICAL, NULL);
+        &(SDL_FRect){36.0F, 306.0F, 952.0F, TASK_LIST_HEIGHT}, UI_LAYOUT_AXIS_VERTICAL, NULL);
+    ui_scroll_view *rows_scroll_view = NULL;
+    if (rows_container != NULL)
+    {
+        rows_scroll_view =
+            ui_scroll_view_create(&(SDL_FRect){36.0F, 306.0F, 952.0F, TASK_LIST_HEIGHT},
+                                  (ui_element *)rows_container, 24.0F, NULL);
+    }
 
     ui_hrule *bottom_rule = ui_hrule_create(1.0F, color_ink, 0.0F);
     if (bottom_rule != NULL)
@@ -496,16 +706,21 @@ int main(void)
     }
 
     ui_text *remaining_text = ui_text_create(820.0F, 668.0F, "0 REMAINING", color_muted, NULL);
+    ui_fps_counter *fps_counter =
+        ui_fps_counter_create(WINDOW_WIDTH, WINDOW_HEIGHT, 12.0F, color_ink, NULL);
 
     todo_controller controller = {
         .tasks = NULL,
         .task_count = 0U,
         .task_capacity = 0U,
+        .next_task_id = 1U,
         .delete_contexts = NULL,
         .delete_context_capacity = 0U,
         .rows_container = rows_container,
         .stats_text = stats_text,
         .remaining_text = remaining_text,
+        .task_input = task_input,
+        .selected_filter_index = 0U,
         .color_ink = color_ink,
         .color_muted = color_muted,
         .color_button_down = color_button_down,
@@ -515,24 +730,35 @@ int main(void)
                                              color_button_dark, color_button_down, "CLEAR DONE",
                                              &color_ink, handle_clear_button_click, &controller);
 
-    bool rows_ok = rows_container != NULL;
-    rows_ok = rows_ok && append_task(&controller, "asdf", "18:30", false);
-    rows_ok = rows_ok && append_task(&controller, "asdf", "19:59", false);
-    rows_ok = rows_ok && append_task(&controller, "asdf", "19:59", false);
-    rows_ok = rows_ok && append_task(&controller, "asdf", "19:59", false);
-    rows_ok = rows_ok && append_task(&controller, "asdf", "19:59", false);
+    static const char *initial_task_titles[] = {
+        "red", "orange", "yellow", "green", "blue", "indigo", "violet", "cyan", "magenta", "amber",
+    };
+    char initial_due_time[6];
+    bool rows_ok = rows_container != NULL && rows_scroll_view != NULL;
+    fill_random_time(initial_due_time, sizeof(initial_due_time));
+    rows_ok = rows_ok && append_task(&controller, initial_task_titles[0], initial_due_time, false);
+    for (size_t i = 1U; i < SDL_arraysize(initial_task_titles) && rows_ok; ++i)
+    {
+        fill_random_time(initial_due_time, sizeof(initial_due_time));
+        rows_ok = append_task(&controller, initial_task_titles[i], initial_due_time, false);
+    }
     rows_ok = rows_ok && rebuild_task_rows(&controller);
 
-    if (header_left == NULL || header_right == NULL || title == NULL || date_text == NULL ||
-        clock_text == NULL || icon_cell == NULL || icon_arrow == NULL || task_input == NULL ||
-        add_button == NULL || stats_text == NULL || filter_group == NULL || top_rule == NULL ||
-        list_frame == NULL || !rows_ok || bottom_rule == NULL || clear_done == NULL ||
-        remaining_text == NULL)
+    if (header_left == NULL || header_right == NULL || title == NULL || datetime_text == NULL ||
+        icon_cell == NULL || icon_arrow == NULL || task_input == NULL || add_button == NULL ||
+        stats_text == NULL || filter_group == NULL || top_rule == NULL || list_frame == NULL ||
+        !rows_ok || bottom_rule == NULL || clear_done == NULL || remaining_text == NULL ||
+        fps_counter == NULL)
     {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create todo mockup UI elements");
         destroy_task_storage(&controller);
-        if (rows_container != NULL && rows_container->base.ops != NULL &&
-            rows_container->base.ops->destroy != NULL)
+        if (rows_scroll_view != NULL && rows_scroll_view->base.ops != NULL &&
+            rows_scroll_view->base.ops->destroy != NULL)
+        {
+            rows_scroll_view->base.ops->destroy((ui_element *)rows_scroll_view);
+        }
+        else if (rows_container != NULL && rows_container->base.ops != NULL &&
+                 rows_container->base.ops->destroy != NULL)
         {
             rows_container->base.ops->destroy((ui_element *)rows_container);
         }
@@ -543,11 +769,14 @@ int main(void)
         return 1;
     }
 
+    task_input->on_submit_context = &controller;
+    add_button->on_click_context = &controller;
+    filter_group->on_change_context = &controller;
+
     if (!add_element_or_fail(&context, (ui_element *)header_left) ||
         !add_element_or_fail(&context, (ui_element *)header_right) ||
         !add_element_or_fail(&context, (ui_element *)title) ||
-        !add_element_or_fail(&context, (ui_element *)date_text) ||
-        !add_element_or_fail(&context, (ui_element *)clock_text) ||
+        !add_element_or_fail(&context, (ui_element *)datetime_text) ||
         !add_element_or_fail(&context, (ui_element *)icon_cell) ||
         !add_element_or_fail(&context, (ui_element *)icon_arrow) ||
         !add_element_or_fail(&context, (ui_element *)task_input) ||
@@ -556,10 +785,11 @@ int main(void)
         !add_element_or_fail(&context, (ui_element *)filter_group) ||
         !add_element_or_fail(&context, (ui_element *)top_rule) ||
         !add_element_or_fail(&context, (ui_element *)list_frame) ||
-        !add_element_or_fail(&context, (ui_element *)rows_container) ||
+        !add_element_or_fail(&context, (ui_element *)rows_scroll_view) ||
         !add_element_or_fail(&context, (ui_element *)bottom_rule) ||
         !add_element_or_fail(&context, (ui_element *)clear_done) ||
-        !add_element_or_fail(&context, (ui_element *)remaining_text))
+        !add_element_or_fail(&context, (ui_element *)remaining_text) ||
+        !add_element_or_fail(&context, (ui_element *)fps_counter))
     {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to register todo mockup UI elements");
         destroy_task_storage(&controller);
@@ -588,6 +818,13 @@ int main(void)
                 continue;
             }
             ui_context_handle_event(&context, &event);
+        }
+
+        format_header_datetime(header_datetime, sizeof(header_datetime));
+        if (!ui_text_set_content(datetime_text, header_datetime))
+        {
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to update header datetime text");
+            running = false;
         }
 
         ui_context_update(&context, delta_seconds);
