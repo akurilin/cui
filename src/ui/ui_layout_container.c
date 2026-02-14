@@ -4,6 +4,7 @@
 
 static const float DEFAULT_LAYOUT_PADDING = 8.0F;
 static const float DEFAULT_LAYOUT_SPACING = 8.0F;
+static const float PADDING_SIDES = 2.0F;
 
 static bool is_valid_element(const ui_element *element)
 {
@@ -45,6 +46,18 @@ static void layout_children(ui_layout_container *container)
             child->rect.w = inner_w;
             child->rect.h = child_height;
             cursor_y += child_height + spacing;
+        }
+
+        // Auto-size rect.h to the total content height so parent elements
+        // (such as a scroll view) can read the container's rect to determine
+        // how much content it holds.
+        if (cursor_y > inner_y)
+        {
+            container->base.rect.h = (cursor_y - spacing + padding) - container->base.rect.y;
+        }
+        else
+        {
+            container->base.rect.h = padding * PADDING_SIDES;
         }
         return;
     }
