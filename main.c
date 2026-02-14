@@ -255,13 +255,13 @@ int main(void)
         &toolbar_stack_rect, UI_LAYOUT_AXIS_HORIZONTAL, &border_color_red);
     ui_button *toolbar_button_1 =
         ui_button_create(&(SDL_FRect){0.0F, 0.0F, 96.0F, 32.0F}, button_up_color, button_down_color,
-                         &border_color_red, button_click_handler_fn, button_click_context);
+                         "one", &border_color_red, button_click_handler_fn, button_click_context);
     ui_button *toolbar_button_2 = ui_button_create(
-        &(SDL_FRect){0.0F, 0.0F, 120.0F, 32.0F}, button_up_color, button_down_color,
+        &(SDL_FRect){0.0F, 0.0F, 120.0F, 32.0F}, button_up_color, button_down_color, "two",
         &border_color_red, button_click_handler_fn, button_click_context);
     ui_button *toolbar_button_3 =
         ui_button_create(&(SDL_FRect){0.0F, 0.0F, 72.0F, 32.0F}, button_up_color, button_down_color,
-                         &border_color_red, button_click_handler_fn, button_click_context);
+                         "three", &border_color_red, button_click_handler_fn, button_click_context);
 
     if (!add_child_or_fail(toolbar_stack, (ui_element *)toolbar_button_1) ||
         !add_child_or_fail(toolbar_stack, (ui_element *)toolbar_button_2) ||
@@ -283,8 +283,8 @@ int main(void)
 
     // Interactive button that triggers `log_button_press` on click.
     ui_button *button =
-        ui_button_create(&button_rect, button_up_color, button_down_color, &border_color_red,
-                         button_click_handler_fn, button_click_context);
+        ui_button_create(&button_rect, button_up_color, button_down_color, "click me",
+                         &border_color_red, button_click_handler_fn, button_click_context);
 
     // Demo image displayed above the button in the content area.
     // If assets/icon.png is missing, ui_image uses assets/missing-image.png.

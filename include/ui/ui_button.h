@@ -18,6 +18,7 @@ typedef struct ui_button
     ui_element base;
     SDL_Color up_color;
     SDL_Color down_color;
+    const char *label;
     bool is_pressed;
     button_click_handler on_click;
     void *on_click_context;
@@ -29,6 +30,7 @@ typedef struct ui_button
  * Parameters:
  * - rect: clickable and render bounds in window coordinates
  * - up_color/down_color: fill colors for idle and pressed states
+ * - label: optional borrowed text rendered in white at button center (NULL for no text)
  * - border_color: optional border color (NULL disables border)
  * - on_click/on_click_context: optional callback + user context
  *
@@ -36,7 +38,7 @@ typedef struct ui_button
  * Ownership transfers to caller (or ui_context after ui_context_add succeeds).
  */
 ui_button *ui_button_create(const SDL_FRect *rect, SDL_Color up_color, SDL_Color down_color,
-                            const SDL_Color *border_color, button_click_handler on_click,
-                            void *on_click_context);
+                            const char *label, const SDL_Color *border_color,
+                            button_click_handler on_click, void *on_click_context);
 
 #endif
