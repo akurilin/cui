@@ -8,6 +8,7 @@
 #include "ui/ui_image.h"
 #include "ui/ui_layout_container.h"
 #include "ui/ui_pane.h"
+#include "ui/ui_segment_group.h"
 #include "ui/ui_slider.h"
 #include "ui/ui_text.h"
 #include "ui/ui_text_input.h"
@@ -59,6 +60,13 @@ static void log_text_input_submit(const char *value, void *context)
 {
     (void)context;
     printf("text input submit: \"%s\"\n", value);
+    fflush(stdout);
+}
+
+static void log_filter_change(size_t selected_index, const char *selected_label, void *context)
+{
+    (void)context;
+    printf("filter changed: %zu (%s)\n", selected_index, selected_label);
     fflush(stdout);
 }
 
@@ -260,38 +268,14 @@ int main(void)
     button_click_handler button_click_handler_fn = log_button_press;
     void *button_click_context = NULL;
 
-    // Horizontal stack demo in the main content area.
-    const SDL_FRect toolbar_stack_rect = {pane_width + (content_width - 360.0F) / 2.0F, 40.0F,
-                                          360.0F, 56.0F};
-    ui_layout_container *toolbar_stack = ui_layout_container_create(
-        &toolbar_stack_rect, UI_LAYOUT_AXIS_HORIZONTAL, &border_color_red);
-    ui_button *toolbar_button_1 =
-        ui_button_create(&(SDL_FRect){0.0F, 0.0F, 96.0F, 32.0F}, button_up_color, button_down_color,
-                         "one", &border_color_red, button_click_handler_fn, button_click_context);
-    ui_button *toolbar_button_2 = ui_button_create(
-        &(SDL_FRect){0.0F, 0.0F, 120.0F, 32.0F}, button_up_color, button_down_color, "two",
-        &border_color_red, button_click_handler_fn, button_click_context);
-    ui_button *toolbar_button_3 =
-        ui_button_create(&(SDL_FRect){0.0F, 0.0F, 72.0F, 32.0F}, button_up_color, button_down_color,
-                         "three", &border_color_red, button_click_handler_fn, button_click_context);
-
-    if (!add_child_or_fail(toolbar_stack, (ui_element *)toolbar_button_1) ||
-        !add_child_or_fail(toolbar_stack, (ui_element *)toolbar_button_2) ||
-        !add_child_or_fail(toolbar_stack, (ui_element *)toolbar_button_3))
-    {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
-                     "Failed to create or register horizontal stack children");
-        if (toolbar_stack != NULL && toolbar_stack->base.ops != NULL &&
-            toolbar_stack->base.ops->destroy != NULL)
-        {
-            toolbar_stack->base.ops->destroy((ui_element *)toolbar_stack);
-        }
-        ui_context_destroy(&context);
-        SDL_DestroyRenderer(renderer);
-        SDL_DestroyWindow(window);
-        SDL_Quit();
-        return 1;
-    }
+    // Todo filter segmented control in the main content area.
+    const char *todo_filter_labels[] = {"ALL", "ACTIVE", "DONE"};
+    const SDL_FRect filter_segment_rect = {pane_width + content_width - 304.0F, 40.0F, 264.0F,
+                                           32.0F};
+    ui_segment_group *filter_segment_group =
+        ui_segment_group_create(&filter_segment_rect, todo_filter_labels, 3U, 0U, button_up_color,
+                                pane_fill_color, button_down_color, pane_fill_color,
+                                sidebar_text_color, &border_color_red, log_filter_change, NULL);
 
     // Interactive button that triggers `log_button_press` on click.
     ui_button *button =
@@ -353,7 +337,7 @@ int main(void)
     // `context` and get cleaned up by `ui_context_destroy`.
     if (!add_element_or_fail(&context, (ui_element *)pane) ||
         !add_element_or_fail(&context, (ui_element *)sidebar_stack) ||
-        !add_element_or_fail(&context, (ui_element *)toolbar_stack) ||
+        !add_element_or_fail(&context, (ui_element *)filter_segment_group) ||
         !add_element_or_fail(&context, (ui_element *)button) ||
         !add_element_or_fail(&context, (ui_element *)icon) ||
         !add_element_or_fail(&context, (ui_element *)slider) ||
