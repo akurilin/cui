@@ -15,19 +15,19 @@ static size_t clamp_segment_index(const ui_segment_group *group, size_t index)
     return index;
 }
 
-static size_t segment_index_from_x(const ui_segment_group *group, float x)
+static size_t segment_index_from_x(const ui_segment_group *group, float x, const SDL_FRect *sr)
 {
-    if (x <= group->base.rect.x)
+    if (x <= sr->x)
     {
         return 0U;
     }
-    if (x >= group->base.rect.x + group->base.rect.w)
+    if (x >= sr->x + sr->w)
     {
         return group->segment_count - 1U;
     }
 
-    const float relative_x = x - group->base.rect.x;
-    const float normalized = relative_x / group->base.rect.w;
+    const float relative_x = x - sr->x;
+    const float normalized = relative_x / sr->w;
     const float scaled = normalized * (float)group->segment_count;
     return clamp_segment_index(group, (size_t)scaled);
 }
@@ -48,16 +48,17 @@ static void set_selected_index_internal(ui_segment_group *group, size_t selected
 static bool handle_segment_group_event(ui_element *element, const SDL_Event *event)
 {
     ui_segment_group *group = (ui_segment_group *)element;
+    const SDL_FRect sr = ui_element_screen_rect(element);
 
     if (event->type == SDL_EVENT_MOUSE_BUTTON_DOWN && event->button.button == SDL_BUTTON_LEFT)
     {
         const SDL_FPoint cursor = {event->button.x, event->button.y};
-        if (!SDL_PointInRectFloat(&cursor, &group->base.rect))
+        if (!SDL_PointInRectFloat(&cursor, &sr))
         {
             return false;
         }
 
-        group->pressed_index = segment_index_from_x(group, event->button.x);
+        group->pressed_index = segment_index_from_x(group, event->button.x, &sr);
         group->has_pressed_segment = true;
         return true;
     }
@@ -71,10 +72,10 @@ static bool handle_segment_group_event(ui_element *element, const SDL_Event *eve
         }
 
         const SDL_FPoint cursor = {event->button.x, event->button.y};
-        const bool is_inside = SDL_PointInRectFloat(&cursor, &group->base.rect);
+        const bool is_inside = SDL_PointInRectFloat(&cursor, &sr);
         if (is_inside)
         {
-            const size_t selected = segment_index_from_x(group, event->button.x);
+            const size_t selected = segment_index_from_x(group, event->button.x, &sr);
             set_selected_index_internal(group, selected, true);
         }
 
@@ -85,9 +86,9 @@ static bool handle_segment_group_event(ui_element *element, const SDL_Event *eve
     if (event->type == SDL_EVENT_MOUSE_MOTION && group->has_pressed_segment)
     {
         const SDL_FPoint cursor = {event->motion.x, event->motion.y};
-        if (SDL_PointInRectFloat(&cursor, &group->base.rect))
+        if (SDL_PointInRectFloat(&cursor, &sr))
         {
-            group->pressed_index = segment_index_from_x(group, event->motion.x);
+            group->pressed_index = segment_index_from_x(group, event->motion.x, &sr);
         }
         return true;
     }
@@ -104,18 +105,19 @@ static void update_segment_group(ui_element *element, float delta_seconds)
 static void render_segment_group(const ui_element *element, SDL_Renderer *renderer)
 {
     const ui_segment_group *group = (const ui_segment_group *)element;
-    const float segment_width = group->base.rect.w / (float)group->segment_count;
+    const SDL_FRect sr = ui_element_screen_rect(element);
+    const float segment_width = sr.w / (float)group->segment_count;
 
     for (size_t i = 0; i < group->segment_count; ++i)
     {
-        const float segment_x = group->base.rect.x + (segment_width * (float)i);
+        const float segment_x = sr.x + (segment_width * (float)i);
         float width = segment_width;
         if (i == group->segment_count - 1U)
         {
-            width = (group->base.rect.x + group->base.rect.w) - segment_x;
+            width = (sr.x + sr.w) - segment_x;
         }
 
-        const SDL_FRect segment_rect = {segment_x, group->base.rect.y, width, group->base.rect.h};
+        const SDL_FRect segment_rect = {segment_x, sr.y, width, sr.h};
         const bool is_selected = i == group->selected_index;
         const bool is_pressed = group->has_pressed_segment && i == group->pressed_index;
         const SDL_Color fill_color =
@@ -145,14 +147,13 @@ static void render_segment_group(const ui_element *element, SDL_Renderer *render
                            separator_color.a);
     for (size_t i = 1; i < group->segment_count; ++i)
     {
-        const float separator_x = group->base.rect.x + (segment_width * (float)i);
-        SDL_RenderLine(renderer, separator_x, group->base.rect.y, separator_x,
-                       group->base.rect.y + group->base.rect.h);
+        const float separator_x = sr.x + (segment_width * (float)i);
+        SDL_RenderLine(renderer, separator_x, sr.y, separator_x, sr.y + sr.h);
     }
 
     if (group->base.has_border)
     {
-        ui_element_render_inner_border(renderer, &group->base.rect, group->base.border_color,
+        ui_element_render_inner_border(renderer, &sr, group->base.border_color,
                                        group->base.border_width);
     }
 }
@@ -199,6 +200,9 @@ ui_segment_group_create(const SDL_FRect *rect, const char **labels, size_t segme
     group->base.ops = &SEGMENT_GROUP_OPS;
     group->base.visible = true;
     group->base.enabled = true;
+    group->base.parent = NULL;
+    group->base.align_h = UI_ALIGN_LEFT;
+    group->base.align_v = UI_ALIGN_TOP;
     ui_element_set_border(&group->base, border_color, 1.0F);
     group->labels = labels;
     group->segment_count = segment_count;

@@ -66,6 +66,51 @@ void ui_element_render_inner_border(SDL_Renderer *renderer, const SDL_FRect *rec
     }
 }
 
+SDL_FRect ui_element_screen_rect(const ui_element *element)
+{
+    if (element == NULL)
+    {
+        return (SDL_FRect){0.0F, 0.0F, 0.0F, 0.0F};
+    }
+
+    if (element->parent == NULL)
+    {
+        return element->rect;
+    }
+
+    const SDL_FRect parent_sr = ui_element_screen_rect(element->parent);
+    float abs_x;
+    float abs_y;
+
+    switch (element->align_h)
+    {
+    case UI_ALIGN_CENTER_H:
+        abs_x = parent_sr.x + (parent_sr.w - element->rect.w) * 0.5F + element->rect.x;
+        break;
+    case UI_ALIGN_RIGHT:
+        abs_x = parent_sr.x + parent_sr.w - element->rect.w - element->rect.x;
+        break;
+    default: /* UI_ALIGN_LEFT */
+        abs_x = parent_sr.x + element->rect.x;
+        break;
+    }
+
+    switch (element->align_v)
+    {
+    case UI_ALIGN_CENTER_V:
+        abs_y = parent_sr.y + (parent_sr.h - element->rect.h) * 0.5F + element->rect.y;
+        break;
+    case UI_ALIGN_BOTTOM:
+        abs_y = parent_sr.y + parent_sr.h - element->rect.h - element->rect.y;
+        break;
+    default: /* UI_ALIGN_TOP */
+        abs_y = parent_sr.y + element->rect.y;
+        break;
+    }
+
+    return (SDL_FRect){abs_x, abs_y, element->rect.w, element->rect.h};
+}
+
 bool ui_element_hit_test(const ui_element *element, const SDL_FPoint *point)
 {
     if (element == NULL || point == NULL)
@@ -73,5 +118,6 @@ bool ui_element_hit_test(const ui_element *element, const SDL_FPoint *point)
         return false;
     }
 
-    return SDL_PointInRectFloat(point, &element->rect);
+    const SDL_FRect sr = ui_element_screen_rect(element);
+    return SDL_PointInRectFloat(point, &sr);
 }

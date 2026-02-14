@@ -38,7 +38,8 @@ static bool handle_checkbox_event(ui_element *element, const SDL_Event *event)
     if (event->type == SDL_EVENT_MOUSE_BUTTON_DOWN && event->button.button == SDL_BUTTON_LEFT)
     {
         const SDL_FPoint cursor = {event->button.x, event->button.y};
-        if (SDL_PointInRectFloat(&cursor, &checkbox->base.rect))
+        const SDL_FRect sr = ui_element_screen_rect(element);
+        if (SDL_PointInRectFloat(&cursor, &sr))
         {
             checkbox->is_pressed = true;
             return true;
@@ -50,7 +51,8 @@ static bool handle_checkbox_event(ui_element *element, const SDL_Event *event)
     {
         const bool was_pressed = checkbox->is_pressed;
         const SDL_FPoint cursor = {event->button.x, event->button.y};
-        const bool is_inside = SDL_PointInRectFloat(&cursor, &checkbox->base.rect);
+        const SDL_FRect sr = ui_element_screen_rect(element);
+        const bool is_inside = SDL_PointInRectFloat(&cursor, &sr);
 
         checkbox->is_pressed = false;
         if (was_pressed && is_inside)
@@ -72,8 +74,9 @@ static void update_checkbox(ui_element *element, float delta_seconds)
 static void render_checkbox(const ui_element *element, SDL_Renderer *renderer)
 {
     const ui_checkbox *checkbox = (const ui_checkbox *)element;
-    const float box_x = checkbox->base.rect.x;
-    const float box_y = checkbox->base.rect.y;
+    const SDL_FRect sr = ui_element_screen_rect(element);
+    const float box_x = sr.x;
+    const float box_y = sr.y;
 
     // Draw the box outline.
     const SDL_FRect box_rect = {box_x, box_y, BOX_SIZE, BOX_SIZE};
@@ -100,7 +103,7 @@ static void render_checkbox(const ui_element *element, SDL_Renderer *renderer)
     SDL_RenderDebugText(renderer, label_x, label_y, checkbox->label);
     if (checkbox->base.has_border)
     {
-        ui_element_render_inner_border(renderer, &checkbox->base.rect, checkbox->base.border_color,
+        ui_element_render_inner_border(renderer, &sr, checkbox->base.border_color,
                                        checkbox->base.border_width);
     }
 }
@@ -138,6 +141,9 @@ ui_checkbox *ui_checkbox_create(float x, float y, const char *label, SDL_Color b
     checkbox->base.ops = &CHECKBOX_OPS;
     checkbox->base.visible = true;
     checkbox->base.enabled = true;
+    checkbox->base.parent = NULL;
+    checkbox->base.align_h = UI_ALIGN_LEFT;
+    checkbox->base.align_v = UI_ALIGN_TOP;
     ui_element_set_border(&checkbox->base, border_color, 1.0F);
     checkbox->box_color = box_color;
     checkbox->check_color = check_color;

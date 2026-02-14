@@ -47,20 +47,22 @@ static void render_text(const ui_element *element, SDL_Renderer *renderer)
         return;
     }
 
+    const SDL_FRect sr = ui_element_screen_rect(element);
+
     // Layout containers may stretch text elements taller than glyph height.
     // Centering here keeps text aligned with sibling controls (checkboxes/buttons)
     // in compact rows without changing legacy top-aligned behavior for fixed text.
-    float draw_y = text->base.rect.y;
-    if (text->base.rect.h > DEBUG_GLYPH_HEIGHT)
+    float draw_y = sr.y;
+    if (sr.h > DEBUG_GLYPH_HEIGHT)
     {
-        draw_y += (text->base.rect.h - DEBUG_GLYPH_HEIGHT) * 0.5F;
+        draw_y += (sr.h - DEBUG_GLYPH_HEIGHT) * 0.5F;
     }
 
     SDL_SetRenderDrawColor(renderer, text->color.r, text->color.g, text->color.b, text->color.a);
-    SDL_RenderDebugText(renderer, text->base.rect.x, draw_y, text->content);
+    SDL_RenderDebugText(renderer, sr.x, draw_y, text->content);
     if (text->base.has_border)
     {
-        ui_element_render_inner_border(renderer, &text->base.rect, text->base.border_color,
+        ui_element_render_inner_border(renderer, &sr, text->base.border_color,
                                        text->base.border_width);
     }
 }
@@ -105,6 +107,9 @@ ui_text *ui_text_create(float x, float y, const char *content, SDL_Color color,
     text->base.ops = &TEXT_OPS;
     text->base.visible = true;
     text->base.enabled = false;
+    text->base.parent = NULL;
+    text->base.align_h = UI_ALIGN_LEFT;
+    text->base.align_v = UI_ALIGN_TOP;
     ui_element_set_border(&text->base, border_color, 1.0F);
     text->color = color;
     text->content = content_copy;

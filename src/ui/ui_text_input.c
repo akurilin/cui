@@ -114,14 +114,15 @@ static void update_text_input(ui_element *element, float delta_seconds)
 static void render_text_input(const ui_element *element, SDL_Renderer *renderer)
 {
     const ui_text_input *input = (const ui_text_input *)element;
+    const SDL_FRect sr = ui_element_screen_rect(element);
 
     // Background fill.
     SDL_SetRenderDrawColor(renderer, input->background_color.r, input->background_color.g,
                            input->background_color.b, input->background_color.a);
-    SDL_RenderFillRect(renderer, &input->base.rect);
+    SDL_RenderFillRect(renderer, &sr);
 
-    const float text_x = input->base.rect.x + TEXT_PADDING;
-    const float text_y = input->base.rect.y + ((input->base.rect.h - DEBUG_GLYPH_HEIGHT) * HALF);
+    const float text_x = sr.x + TEXT_PADDING;
+    const float text_y = sr.y + ((sr.h - DEBUG_GLYPH_HEIGHT) * HALF);
 
     // Text content.
     if (input->length > 0)
@@ -151,7 +152,7 @@ static void render_text_input(const ui_element *element, SDL_Renderer *renderer)
     // Border (always enabled for text inputs).
     if (input->base.has_border)
     {
-        ui_element_render_inner_border(renderer, &input->base.rect, input->base.border_color,
+        ui_element_render_inner_border(renderer, &sr, input->base.border_color,
                                        input->base.border_width);
     }
 }
@@ -200,6 +201,9 @@ ui_text_input *ui_text_input_create(const SDL_FRect *rect, SDL_Color text_color,
     input->base.ops = &TEXT_INPUT_OPS;
     input->base.visible = true;
     input->base.enabled = true;
+    input->base.parent = NULL;
+    input->base.align_h = UI_ALIGN_LEFT;
+    input->base.align_v = UI_ALIGN_TOP;
     ui_element_set_border(&input->base, &border_color, 1.0F);
 
     input->buffer[0] = '\0';

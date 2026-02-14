@@ -8,10 +8,11 @@ static const char *MISSING_IMAGE_ASSET_PATH = "assets/missing-image.png";
 static void render_image(const ui_element *element, SDL_Renderer *renderer)
 {
     const ui_image *image = (const ui_image *)element;
-    SDL_RenderTexture(renderer, image->texture, NULL, &image->base.rect);
+    const SDL_FRect sr = ui_element_screen_rect(element);
+    SDL_RenderTexture(renderer, image->texture, NULL, &sr);
     if (image->base.has_border)
     {
-        ui_element_render_inner_border(renderer, &image->base.rect, image->base.border_color,
+        ui_element_render_inner_border(renderer, &sr, image->base.border_color,
                                        image->base.border_width);
     }
 }
@@ -78,6 +79,9 @@ ui_image *ui_image_create(SDL_Renderer *renderer, float x, float y, float w, flo
     image->base.ops = &IMAGE_OPS;
     image->base.visible = true;
     image->base.enabled = false;
+    image->base.parent = NULL;
+    image->base.align_h = UI_ALIGN_LEFT;
+    image->base.align_v = UI_ALIGN_TOP;
     ui_element_set_border(&image->base, border_color, 1.0F);
     image->texture = texture;
 

@@ -57,8 +57,8 @@ static float clamp_scroll(float offset, float max_offset)
 
 static void position_child(ui_scroll_view *scroll)
 {
-    scroll->child->rect.x = scroll->base.rect.x;
-    scroll->child->rect.y = scroll->base.rect.y - scroll->scroll_offset_y;
+    scroll->child->rect.x = 0.0F;
+    scroll->child->rect.y = -scroll->scroll_offset_y;
     scroll->child->rect.w = scroll->base.rect.w;
 }
 
@@ -76,9 +76,9 @@ static bool handle_scroll_view_event(ui_element *element, const SDL_Event *event
     // Gate mouse events to the viewport area.
     if (is_mouse_event(event))
     {
+        const SDL_FRect sr = ui_element_screen_rect(element);
         SDL_FPoint cursor = {0.0F, 0.0F};
-        if (!get_mouse_position(event, &cursor) ||
-            !SDL_PointInRectFloat(&cursor, &scroll->base.rect))
+        if (!get_mouse_position(event, &cursor) || !SDL_PointInRectFloat(&cursor, &sr))
         {
             return false;
         }
@@ -145,10 +145,10 @@ static void render_scroll_view(const ui_element *element, SDL_Renderer *renderer
     }
 
     // Save the current clip rect, apply viewport clipping, render child, restore.
+    const SDL_FRect sr = ui_element_screen_rect(element);
     SDL_Rect saved_clip;
     const bool had_clip = SDL_GetRenderClipRect(renderer, &saved_clip);
-    const SDL_Rect viewport_clip = {(int)scroll->base.rect.x, (int)scroll->base.rect.y,
-                                    (int)scroll->base.rect.w, (int)scroll->base.rect.h};
+    const SDL_Rect viewport_clip = {(int)sr.x, (int)sr.y, (int)sr.w, (int)sr.h};
     SDL_SetRenderClipRect(renderer, &viewport_clip);
 
     if (scroll->child->visible && scroll->child->ops->render != NULL)
@@ -168,7 +168,7 @@ static void render_scroll_view(const ui_element *element, SDL_Renderer *renderer
 
     if (scroll->base.has_border)
     {
-        ui_element_render_inner_border(renderer, &scroll->base.rect, scroll->base.border_color,
+        ui_element_render_inner_border(renderer, &sr, scroll->base.border_color,
                                        scroll->base.border_width);
     }
 }
@@ -209,15 +209,19 @@ ui_scroll_view *ui_scroll_view_create(const SDL_FRect *rect, ui_element *child, 
     scroll->base.ops = &SCROLL_VIEW_OPS;
     scroll->base.visible = true;
     scroll->base.enabled = true;
+    scroll->base.parent = NULL;
+    scroll->base.align_h = UI_ALIGN_LEFT;
+    scroll->base.align_v = UI_ALIGN_TOP;
     ui_element_set_border(&scroll->base, border_color, 1.0F);
     scroll->child = child;
     scroll->scroll_offset_y = 0.0F;
     static const float DEFAULT_SCROLL_STEP = 20.0F;
     scroll->scroll_step = scroll_step > 0.0F ? scroll_step : DEFAULT_SCROLL_STEP;
 
-    // Position the child to match the viewport initially.
-    child->rect.x = rect->x;
-    child->rect.y = rect->y;
+    // Set parent and position the child relative to the scroll view.
+    child->parent = &scroll->base;
+    child->rect.x = 0.0F;
+    child->rect.y = 0.0F;
     child->rect.w = rect->w;
 
     return scroll;

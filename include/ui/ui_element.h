@@ -13,6 +13,36 @@
 typedef struct ui_element ui_element;
 
 /*
+ * Horizontal alignment anchor within a parent element.
+ *
+ * Controls which horizontal reference point of the parent rect.x offsets from:
+ * - LEFT:     rect.x is offset rightward from parent's left edge (default).
+ * - CENTER_H: rect.x is offset from horizontally-centered position.
+ * - RIGHT:    rect.x is inset leftward from parent's right edge.
+ */
+typedef enum ui_align_h
+{
+    UI_ALIGN_LEFT,
+    UI_ALIGN_CENTER_H,
+    UI_ALIGN_RIGHT,
+} ui_align_h;
+
+/*
+ * Vertical alignment anchor within a parent element.
+ *
+ * Controls which vertical reference point of the parent rect.y offsets from:
+ * - TOP:      rect.y is offset downward from parent's top edge (default).
+ * - CENTER_V: rect.y is offset from vertically-centered position.
+ * - BOTTOM:   rect.y is inset upward from parent's bottom edge.
+ */
+typedef enum ui_align_v
+{
+    UI_ALIGN_TOP,
+    UI_ALIGN_CENTER_V,
+    UI_ALIGN_BOTTOM,
+} ui_align_v;
+
+/*
  * Virtual function table for UI elements.
  *
  * Why this exists: C has no inheritance, so each concrete control provides this
@@ -71,7 +101,10 @@ typedef struct ui_element_ops
 /*
  * Shared fields for all UI elements.
  *
- * - rect: element position/size in window coordinates
+ * - rect: position/size relative to the parent element (or window when
+ *   parent is NULL). The meaning of rect.x/rect.y depends on align_h/align_v.
+ * - parent: owning element for relative positioning (NULL = top-level).
+ * - align_h/align_v: anchor point on the parent that rect offsets from.
  * - ops: behavior implementation (must be non-NULL for valid elements)
  * - visible: participates in render pass when true
  * - enabled: participates in event/update passes when true
@@ -79,6 +112,9 @@ typedef struct ui_element_ops
 struct ui_element
 {
     SDL_FRect rect;
+    ui_element *parent;
+    ui_align_h align_h;
+    ui_align_v align_v;
     const ui_element_ops *ops;
     bool visible;
     bool enabled;
@@ -112,7 +148,21 @@ void ui_element_render_inner_border(SDL_Renderer *renderer, const SDL_FRect *rec
                                     float width);
 
 /*
+ * Compute the absolute (window-space) rectangle for an element.
+ *
+ * Walks the parent chain, applying each ancestor's alignment and offset to
+ * convert the element's parent-relative rect into absolute window coordinates.
+ * When parent is NULL the rect is returned as-is (already absolute).
+ *
+ * Returns: SDL_FRect with absolute x, y and the element's own w, h.
+ */
+SDL_FRect ui_element_screen_rect(const ui_element *element);
+
+/*
  * Default point-in-rect hit test used by ui_context for pointer routing.
+ *
+ * Uses ui_element_screen_rect() so hit testing works correctly for elements
+ * with parent-relative coordinates.
  *
  * Returns false when element/point is NULL or when the point is outside the
  * element bounds.
