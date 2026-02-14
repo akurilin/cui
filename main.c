@@ -11,6 +11,7 @@
 #include "ui/ui_segment_group.h"
 #include "ui/ui_text.h"
 #include "ui/ui_text_input.h"
+#include "util/string_util.h"
 
 #include <ctype.h>
 #include <stdbool.h>
@@ -21,7 +22,49 @@
 
 static const int WINDOW_WIDTH = 1024;
 static const int WINDOW_HEIGHT = 768;
+
+// Layout grid constants for the 1024x768 window.
+// The UI uses a single-column card layout with consistent outer margins.
+//
+//   +--[36px margin]--[952px content]--[36px margin]--+
+//   |  header row    (h=64)                           |
+//   |  input row     (h=64)                           |
+//   |  stats/filter  (h=40)                           |
+//   |  ---- rule ----                                 |
+//   |  task list     (h=304, scrollable)              |
+//   |  ---- rule ----                                 |
+//   |  footer row    (h=48)                           |
+//   +------------------------------------------------ +
+static const float LAYOUT_MARGIN = 36.0F;
+static const float CONTENT_WIDTH = 952.0F;
+static const float HEADER_HEIGHT = 64.0F;
+static const float INPUT_ROW_Y = 140.0F;
+static const float INPUT_ROW_HEIGHT = 64.0F;
+static const float STATS_ROW_Y = 244.0F;
+static const float LIST_TOP_Y = 306.0F;
 static const float TASK_LIST_HEIGHT = 304.0F;
+static const float FOOTER_RULE_Y = 632.0F;
+static const float FOOTER_Y = 650.0F;
+static const float ROW_HEIGHT = 32.0F;
+static const float SCROLL_STEP = 24.0F;
+
+// Column widths within a task row (number | check | title | time | delete).
+static const float COL_NUMBER_W = 56.0F;
+static const float COL_CHECK_W = 32.0F;
+static const float COL_TITLE_W = 620.0F;
+static const float COL_TIME_W = 72.0F;
+static const float COL_DELETE_W = 96.0F;
+static const float COL_DELETE_H = 24.0F;
+
+// Widths for header sub-panels and action buttons.
+static const float HEADER_LEFT_W = 680.0F;
+static const float HEADER_RIGHT_W = 272.0F;
+static const float ICON_CELL_W = 56.0F;
+static const float ADD_BUTTON_W = 116.0F;
+static const float CLEAR_BUTTON_W = 184.0F;
+static const float CLEAR_BUTTON_H = 48.0F;
+static const float FILTER_W = 272.0F;
+static const float FILTER_H = 40.0F;
 
 typedef struct todo_task
 {
@@ -34,13 +77,13 @@ typedef struct todo_task
 
 typedef struct todo_controller todo_controller;
 
-typedef struct delete_button_context
+// Generic callback context for task-row controls (checkboxes and delete buttons).
+// Each visible row binds one of these so the callback knows which task to act on.
+typedef struct task_row_context
 {
-    // Row buttons are recreated on every rebuild. Store controller + row index
-    // in stable callback context slots so each button can delete the correct task.
     todo_controller *controller;
     size_t task_index;
-} delete_button_context;
+} task_row_context;
 
 struct todo_controller
 {
@@ -49,8 +92,8 @@ struct todo_controller
     size_t task_capacity;
     // Monotonic ID source so IDs are assigned once at creation time.
     uint64_t next_task_id;
-    delete_button_context *delete_contexts;
-    size_t delete_context_capacity;
+    task_row_context *row_contexts;
+    size_t row_context_capacity;
 
     ui_layout_container *rows_container;
     ui_text *stats_text;
@@ -89,24 +132,6 @@ static bool add_child_or_fail(ui_layout_container *container, ui_element *child)
     return true;
 }
 
-static char *duplicate_string(const char *source)
-{
-    if (source == NULL)
-    {
-        return NULL;
-    }
-
-    const size_t source_length = strlen(source);
-    char *copy = malloc(source_length + 1U);
-    if (copy == NULL)
-    {
-        return NULL;
-    }
-
-    memcpy(copy, source, source_length + 1U);
-    return copy;
-}
-
 static bool update_task_summary(todo_controller *controller)
 {
     if (controller == NULL || controller->stats_text == NULL || controller->remaining_text == NULL)
@@ -143,6 +168,8 @@ static bool update_task_summary(todo_controller *controller)
     return true;
 }
 
+// Forward-declared because event handlers defined above need to call it, but
+// its body depends on add_task_row which is defined immediately before it.
 static bool rebuild_task_rows(todo_controller *controller);
 
 static bool does_task_match_filter(const todo_controller *controller, const todo_task *task)
@@ -165,7 +192,7 @@ static bool does_task_match_filter(const todo_controller *controller, const todo
     }
 }
 
-static bool ensure_delete_context_capacity(todo_controller *controller)
+static bool ensure_row_context_capacity(todo_controller *controller)
 {
     if (controller == NULL)
     {
@@ -174,29 +201,31 @@ static bool ensure_delete_context_capacity(todo_controller *controller)
 
     if (controller->task_count == 0U)
     {
-        free(controller->delete_contexts);
-        controller->delete_contexts = NULL;
-        controller->delete_context_capacity = 0U;
+        free(controller->row_contexts);
+        controller->row_contexts = NULL;
+        controller->row_context_capacity = 0U;
         return true;
     }
 
-    if (controller->delete_context_capacity >= controller->task_count)
+    if (controller->row_context_capacity >= controller->task_count)
     {
         return true;
     }
 
     // Match context capacity to task_count so each visible row can bind a
     // dedicated callback context carrying its current task index.
+    // Note: capacity only grows (or drops to 0 on clear). For this mockup the
+    // peak allocation is small enough that eager shrinking is unnecessary.
     const size_t new_capacity = controller->task_count;
-    delete_button_context *new_contexts =
-        realloc((void *)controller->delete_contexts, new_capacity * sizeof(delete_button_context));
+    task_row_context *new_contexts =
+        realloc((void *)controller->row_contexts, new_capacity * sizeof(task_row_context));
     if (new_contexts == NULL)
     {
         return false;
     }
 
-    controller->delete_contexts = new_contexts;
-    controller->delete_context_capacity = new_capacity;
+    controller->row_contexts = new_contexts;
+    controller->row_context_capacity = new_capacity;
     return true;
 }
 
@@ -222,34 +251,34 @@ static bool delete_task_at_index(todo_controller *controller, size_t index)
 
 static void handle_delete_button_click(void *context)
 {
-    delete_button_context *delete_context = (delete_button_context *)context;
-    if (delete_context == NULL || delete_context->controller == NULL)
+    task_row_context *row_ctx = (task_row_context *)context;
+    if (row_ctx == NULL || row_ctx->controller == NULL)
     {
         return;
     }
 
-    if (!delete_task_at_index(delete_context->controller, delete_context->task_index))
+    if (!delete_task_at_index(row_ctx->controller, row_ctx->task_index))
     {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to delete task at index %zu",
-                     delete_context->task_index);
+                     row_ctx->task_index);
     }
 }
 
 static void handle_task_checkbox_change(bool checked, void *context)
 {
-    delete_button_context *check_context = (delete_button_context *)context;
-    if (check_context == NULL || check_context->controller == NULL)
+    task_row_context *row_ctx = (task_row_context *)context;
+    if (row_ctx == NULL || row_ctx->controller == NULL)
     {
         return;
     }
 
-    todo_controller *controller = check_context->controller;
-    if (check_context->task_index >= controller->task_count)
+    todo_controller *controller = row_ctx->controller;
+    if (row_ctx->task_index >= controller->task_count)
     {
         return;
     }
 
-    controller->tasks[check_context->task_index].is_done = checked;
+    controller->tasks[row_ctx->task_index].is_done = checked;
     // Rebuild so filters, row visibility, and summary text stay in sync.
     if (!rebuild_task_rows(controller))
     {
@@ -269,35 +298,40 @@ static bool add_task_row(todo_controller *controller, size_t index)
     // Render the task's stable ID, not the current row position.
     SDL_snprintf(row_number, sizeof(row_number), "%llu", (unsigned long long)task->id);
 
-    ui_layout_container *row = ui_layout_container_create(
-        &(SDL_FRect){0.0F, 0.0F, 0.0F, 32.0F}, UI_LAYOUT_AXIS_HORIZONTAL, &controller->color_ink);
+    ui_layout_container *row =
+        ui_layout_container_create(&(SDL_FRect){0.0F, 0.0F, 0.0F, ROW_HEIGHT},
+                                   UI_LAYOUT_AXIS_HORIZONTAL, &controller->color_ink);
     if (row == NULL)
     {
         return false;
     }
 
+    task_row_context *row_ctx = &controller->row_contexts[index];
+    row_ctx->controller = controller;
+    row_ctx->task_index = index;
+
     ui_text *number = ui_text_create(0.0F, 0.0F, row_number, controller->color_muted, NULL);
-    if (number != NULL)
+    if (number == NULL)
     {
-        number->base.rect.w = 56.0F;
+        row->base.ops->destroy((ui_element *)row);
+        return false;
     }
+    number->base.rect.w = COL_NUMBER_W;
     if (!add_child_or_fail(row, (ui_element *)number))
     {
         row->base.ops->destroy((ui_element *)row);
         return false;
     }
 
-    delete_button_context *row_context = &controller->delete_contexts[index];
-    row_context->controller = controller;
-    row_context->task_index = index;
-
     ui_checkbox *check = ui_checkbox_create(
         0.0F, 0.0F, "", controller->color_ink, controller->color_ink, controller->color_ink,
-        task->is_done, handle_task_checkbox_change, row_context, NULL);
-    if (check != NULL)
+        task->is_done, handle_task_checkbox_change, row_ctx, NULL);
+    if (check == NULL)
     {
-        check->base.rect.w = 32.0F;
+        row->base.ops->destroy((ui_element *)row);
+        return false;
     }
+    check->base.rect.w = COL_CHECK_W;
     if (!add_child_or_fail(row, (ui_element *)check))
     {
         row->base.ops->destroy((ui_element *)row);
@@ -305,10 +339,12 @@ static bool add_task_row(todo_controller *controller, size_t index)
     }
 
     ui_text *task_text = ui_text_create(0.0F, 0.0F, task->title, controller->color_ink, NULL);
-    if (task_text != NULL)
+    if (task_text == NULL)
     {
-        task_text->base.rect.w = 620.0F;
+        row->base.ops->destroy((ui_element *)row);
+        return false;
     }
+    task_text->base.rect.w = COL_TITLE_W;
     if (!add_child_or_fail(row, (ui_element *)task_text))
     {
         row->base.ops->destroy((ui_element *)row);
@@ -316,10 +352,12 @@ static bool add_task_row(todo_controller *controller, size_t index)
     }
 
     ui_text *time_text = ui_text_create(0.0F, 0.0F, task->due_time, controller->color_muted, NULL);
-    if (time_text != NULL)
+    if (time_text == NULL)
     {
-        time_text->base.rect.w = 72.0F;
+        row->base.ops->destroy((ui_element *)row);
+        return false;
     }
+    time_text->base.rect.w = COL_TIME_W;
     if (!add_child_or_fail(row, (ui_element *)time_text))
     {
         row->base.ops->destroy((ui_element *)row);
@@ -327,9 +365,14 @@ static bool add_task_row(todo_controller *controller, size_t index)
     }
 
     ui_button *remove =
-        ui_button_create(&(SDL_FRect){0.0F, 0.0F, 96.0F, 24.0F}, controller->color_ink,
-                         controller->color_button_down, "DELETE", &controller->color_ink,
-                         handle_delete_button_click, row_context);
+        ui_button_create(&(SDL_FRect){0.0F, 0.0F, COL_DELETE_W, COL_DELETE_H},
+                         controller->color_ink, controller->color_button_down, "DELETE",
+                         &controller->color_ink, handle_delete_button_click, row_ctx);
+    if (remove == NULL)
+    {
+        row->base.ops->destroy((ui_element *)row);
+        return false;
+    }
     if (!add_child_or_fail(row, (ui_element *)remove))
     {
         row->base.ops->destroy((ui_element *)row);
@@ -350,7 +393,7 @@ static bool rebuild_task_rows(todo_controller *controller)
     {
         return false;
     }
-    if (!ensure_delete_context_capacity(controller))
+    if (!ensure_row_context_capacity(controller))
     {
         return false;
     }
@@ -459,7 +502,11 @@ static void fill_current_time(char *buffer, size_t buffer_size)
 #else
     localtime_r(&now, &local_tm);
 #endif
-    strftime(buffer, buffer_size, "%H:%M", &local_tm);
+
+    if (strftime(buffer, buffer_size, "%H:%M", &local_tm) == 0U)
+    {
+        buffer[0] = '\0';
+    }
 }
 
 static uint32_t next_pseudo_random_u32(void)
@@ -519,29 +566,34 @@ static bool add_task_from_input(todo_controller *controller)
     return rebuild_task_rows(controller);
 }
 
-static void clear_all_tasks(todo_controller *controller)
+// Remove only completed tasks, keeping active ones in place.
+static void clear_done_tasks(todo_controller *controller)
 {
     if (controller == NULL)
     {
         return;
     }
 
-    for (size_t i = 0; i < controller->task_count; ++i)
+    size_t write = 0U;
+    for (size_t read = 0; read < controller->task_count; ++read)
     {
-        free(controller->tasks[i].title);
-        controller->tasks[i].title = NULL;
+        if (controller->tasks[read].is_done)
+        {
+            free(controller->tasks[read].title);
+            controller->tasks[read].title = NULL;
+        }
+        else
+        {
+            if (write != read)
+            {
+                controller->tasks[write] = controller->tasks[read];
+            }
+            write++;
+        }
     }
-    controller->task_count = 0U;
+    controller->task_count = write;
 
-    if (controller->rows_container != NULL)
-    {
-        ui_layout_container_clear_children(controller->rows_container, true);
-    }
-    free(controller->delete_contexts);
-    controller->delete_contexts = NULL;
-    controller->delete_context_capacity = 0U;
-
-    (void)update_task_summary(controller);
+    (void)rebuild_task_rows(controller);
 }
 
 static void destroy_task_storage(todo_controller *controller)
@@ -561,14 +613,14 @@ static void destroy_task_storage(todo_controller *controller)
     controller->tasks = NULL;
     controller->task_count = 0U;
     controller->task_capacity = 0U;
-    free(controller->delete_contexts);
-    controller->delete_contexts = NULL;
-    controller->delete_context_capacity = 0U;
+    free(controller->row_contexts);
+    controller->row_contexts = NULL;
+    controller->row_context_capacity = 0U;
 }
 
 static void handle_clear_button_click(void *context)
 {
-    clear_all_tasks((todo_controller *)context);
+    clear_done_tasks((todo_controller *)context);
 }
 
 static void handle_add_button_click(void *context)
@@ -658,72 +710,93 @@ int main(void)
     const SDL_Color color_button_down = {86, 86, 94, 255};
     const SDL_Color color_accent = {211, 92, 52, 255};
 
-    ui_pane *header_left =
-        ui_pane_create(&(SDL_FRect){36.0F, 36.0F, 680.0F, 64.0F}, color_panel, &color_ink);
-    ui_pane *header_right =
-        ui_pane_create(&(SDL_FRect){716.0F, 36.0F, 272.0F, 64.0F}, color_panel, &color_ink);
+    const float header_right_x = LAYOUT_MARGIN + HEADER_LEFT_W;
+    const float input_field_x = LAYOUT_MARGIN + ICON_CELL_W;
+    const float input_field_w = CONTENT_WIDTH - ICON_CELL_W - ADD_BUTTON_W;
+    const float add_button_x = LAYOUT_MARGIN + CONTENT_WIDTH - ADD_BUTTON_W;
+    const float filter_x = LAYOUT_MARGIN + CONTENT_WIDTH - FILTER_W;
 
-    ui_text *title =
-        ui_text_create(58.0F, 64.0F, "TODO TASK MANAGEMENT SYSTEM V0.1", color_ink, NULL);
+    ui_pane *header_left =
+        ui_pane_create(&(SDL_FRect){LAYOUT_MARGIN, LAYOUT_MARGIN, HEADER_LEFT_W, HEADER_HEIGHT},
+                       color_panel, &color_ink);
+    ui_pane *header_right =
+        ui_pane_create(&(SDL_FRect){header_right_x, LAYOUT_MARGIN, HEADER_RIGHT_W, HEADER_HEIGHT},
+                       color_panel, &color_ink);
+
+    ui_text *title = ui_text_create(LAYOUT_MARGIN + 22.0F, LAYOUT_MARGIN + 28.0F,
+                                    "TODO TASK MANAGEMENT SYSTEM V0.1", color_ink, NULL);
     char header_datetime[40];
     format_header_datetime(header_datetime, sizeof(header_datetime));
-    ui_text *datetime_text = ui_text_create(740.0F, 64.0F, header_datetime, color_muted, NULL);
+    ui_text *datetime_text = ui_text_create(header_right_x + 24.0F, LAYOUT_MARGIN + 28.0F,
+                                            header_datetime, color_muted, NULL);
 
     ui_pane *icon_cell =
-        ui_pane_create(&(SDL_FRect){36.0F, 140.0F, 56.0F, 64.0F}, color_panel, &color_ink);
-    ui_text *icon_arrow = ui_text_create(58.0F, 166.0F, ">", color_accent, NULL);
+        ui_pane_create(&(SDL_FRect){LAYOUT_MARGIN, INPUT_ROW_Y, ICON_CELL_W, INPUT_ROW_HEIGHT},
+                       color_panel, &color_ink);
+    ui_text *icon_arrow =
+        ui_text_create(LAYOUT_MARGIN + 22.0F, INPUT_ROW_Y + 26.0F, ">", color_accent, NULL);
 
     ui_text_input *task_input = ui_text_input_create(
-        &(SDL_FRect){92.0F, 140.0F, 780.0F, 64.0F}, color_muted, color_panel, color_ink, color_ink,
-        "enter task...", color_muted, window, handle_task_input_submit, NULL);
-    ui_button *add_button =
-        ui_button_create(&(SDL_FRect){872.0F, 140.0F, 116.0F, 64.0F}, color_button_dark,
-                         color_button_down, "ADD", &color_ink, handle_add_button_click, NULL);
+        &(SDL_FRect){input_field_x, INPUT_ROW_Y, input_field_w, INPUT_ROW_HEIGHT}, color_muted,
+        color_panel, color_ink, color_ink, "enter task...", color_muted, window,
+        handle_task_input_submit, NULL);
+    ui_button *add_button = ui_button_create(
+        &(SDL_FRect){add_button_x, INPUT_ROW_Y, ADD_BUTTON_W, INPUT_ROW_HEIGHT}, color_button_dark,
+        color_button_down, "ADD", &color_ink, handle_add_button_click, NULL);
 
-    ui_text *stats_text = ui_text_create(36.0F, 244.0F, "0 ACTIVE - 0 DONE", color_ink, NULL);
+    ui_text *stats_text =
+        ui_text_create(LAYOUT_MARGIN, STATS_ROW_Y, "0 ACTIVE - 0 DONE", color_ink, NULL);
 
     const char *filter_labels[] = {"ALL", "ACTIVE", "DONE"};
-    ui_segment_group *filter_group =
-        ui_segment_group_create(&(SDL_FRect){716.0F, 244.0F, 272.0F, 40.0F}, filter_labels, 3U, 0U,
-                                color_panel, color_button_dark, color_button_down, color_muted,
-                                color_panel, &color_ink, handle_filter_change, NULL);
+    ui_segment_group *filter_group = ui_segment_group_create(
+        &(SDL_FRect){filter_x, STATS_ROW_Y, FILTER_W, FILTER_H}, filter_labels, 3U, 0U, color_panel,
+        color_button_dark, color_button_down, color_muted, color_panel, &color_ink,
+        handle_filter_change, NULL);
     ui_hrule *top_rule = ui_hrule_create(1.0F, color_ink, 0.0F);
     if (top_rule != NULL)
     {
-        top_rule->base.rect = (SDL_FRect){36.0F, 300.0F, 952.0F, 1.0F};
+        top_rule->base.rect = (SDL_FRect){LAYOUT_MARGIN, LIST_TOP_Y - 6.0F, CONTENT_WIDTH, 1.0F};
     }
 
-    ui_pane *list_frame = ui_pane_create(&(SDL_FRect){36.0F, 306.0F, 952.0F, TASK_LIST_HEIGHT},
-                                         color_panel, &color_ink);
+    ui_pane *list_frame =
+        ui_pane_create(&(SDL_FRect){LAYOUT_MARGIN, LIST_TOP_Y, CONTENT_WIDTH, TASK_LIST_HEIGHT},
+                       color_panel, &color_ink);
 
     ui_layout_container *rows_container = ui_layout_container_create(
-        &(SDL_FRect){36.0F, 306.0F, 952.0F, TASK_LIST_HEIGHT}, UI_LAYOUT_AXIS_VERTICAL, NULL);
+        &(SDL_FRect){LAYOUT_MARGIN, LIST_TOP_Y, CONTENT_WIDTH, TASK_LIST_HEIGHT},
+        UI_LAYOUT_AXIS_VERTICAL, NULL);
+
+    // On success the scroll view takes ownership of rows_container; on failure
+    // rows_container must be destroyed separately (see error path below).
     ui_scroll_view *rows_scroll_view = NULL;
     if (rows_container != NULL)
     {
-        // Scroll view owns the rows container and clips overflowing rows to the frame.
-        rows_scroll_view =
-            ui_scroll_view_create(&(SDL_FRect){36.0F, 306.0F, 952.0F, TASK_LIST_HEIGHT},
-                                  (ui_element *)rows_container, 24.0F, NULL);
+        rows_scroll_view = ui_scroll_view_create(
+            &(SDL_FRect){LAYOUT_MARGIN, LIST_TOP_Y, CONTENT_WIDTH, TASK_LIST_HEIGHT},
+            (ui_element *)rows_container, SCROLL_STEP, NULL);
     }
 
     ui_hrule *bottom_rule = ui_hrule_create(1.0F, color_ink, 0.0F);
     if (bottom_rule != NULL)
     {
-        bottom_rule->base.rect = (SDL_FRect){36.0F, 632.0F, 952.0F, 1.0F};
+        bottom_rule->base.rect = (SDL_FRect){LAYOUT_MARGIN, FOOTER_RULE_Y, CONTENT_WIDTH, 1.0F};
     }
 
-    ui_text *remaining_text = ui_text_create(820.0F, 668.0F, "0 REMAINING", color_muted, NULL);
+    ui_text *remaining_text = ui_text_create(LAYOUT_MARGIN + CONTENT_WIDTH - 168.0F,
+                                             FOOTER_Y + 18.0F, "0 REMAINING", color_muted, NULL);
     ui_fps_counter *fps_counter =
         ui_fps_counter_create(WINDOW_WIDTH, WINDOW_HEIGHT, 12.0F, color_ink, NULL);
 
+    // controller lives on main()'s stack. Callback contexts store &controller,
+    // which is safe because main()'s scope outlives all UI elements. Do not
+    // move construction into a sub-function without addressing this lifetime.
     todo_controller controller = {
         .tasks = NULL,
         .task_count = 0U,
         .task_capacity = 0U,
         .next_task_id = 1U,
-        .delete_contexts = NULL,
-        .delete_context_capacity = 0U,
+        .row_contexts = NULL,
+        .row_context_capacity = 0U,
         .rows_container = rows_container,
         .stats_text = stats_text,
         .remaining_text = remaining_text,
@@ -734,9 +807,9 @@ int main(void)
         .color_button_down = color_button_down,
     };
 
-    ui_button *clear_done = ui_button_create(&(SDL_FRect){36.0F, 650.0F, 184.0F, 48.0F},
-                                             color_button_dark, color_button_down, "CLEAR DONE",
-                                             &color_ink, handle_clear_button_click, &controller);
+    ui_button *clear_done = ui_button_create(
+        &(SDL_FRect){LAYOUT_MARGIN, FOOTER_Y, CLEAR_BUTTON_W, CLEAR_BUTTON_H}, color_button_dark,
+        color_button_down, "CLEAR DONE", &color_ink, handle_clear_button_click, &controller);
 
     static const char *initial_task_titles[] = {
         "red", "orange", "yellow", "green", "blue", "indigo", "violet", "cyan", "magenta", "amber",
@@ -812,6 +885,7 @@ int main(void)
 
     bool running = true;
     Uint64 previous_ns = SDL_GetTicksNS();
+    time_t last_header_time = 0;
 
     while (running)
     {
@@ -830,11 +904,18 @@ int main(void)
             ui_context_handle_event(&context, &event);
         }
 
-        format_header_datetime(header_datetime, sizeof(header_datetime));
-        if (!ui_text_set_content(datetime_text, header_datetime))
+        // Only reformat the header clock when the wall-clock second changes,
+        // avoiding redundant time/strftime/set_content work on every frame.
+        const time_t now = time(NULL);
+        if (now != last_header_time)
         {
-            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to update header datetime text");
-            running = false;
+            last_header_time = now;
+            format_header_datetime(header_datetime, sizeof(header_datetime));
+            if (!ui_text_set_content(datetime_text, header_datetime))
+            {
+                SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to update header datetime text");
+                running = false;
+            }
         }
 
         ui_context_update(&context, delta_seconds);

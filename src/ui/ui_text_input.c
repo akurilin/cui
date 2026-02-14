@@ -1,5 +1,7 @@
 #include "ui/ui_text_input.h"
 
+#include "util/string_util.h"
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -11,24 +13,6 @@ static const float CARET_BLINK_HALF = 0.5F;
 static const float CARET_WIDTH = 2.0F;
 static const float HALF = 0.5F;
 static const float PADDING_SIDES = 2.0F;
-
-static char *duplicate_text(const char *value)
-{
-    if (value == NULL)
-    {
-        return NULL;
-    }
-
-    const size_t length = strlen(value);
-    char *copy = malloc(length + 1U);
-    if (copy == NULL)
-    {
-        return NULL;
-    }
-
-    memcpy(copy, value, length + 1U);
-    return copy;
-}
 
 static void set_focus(ui_text_input *input, bool focused)
 {
@@ -292,7 +276,7 @@ bool ui_text_input_set_placeholder(ui_text_input *input, const char *placeholder
         return true;
     }
 
-    char *placeholder_copy = duplicate_text(placeholder);
+    char *placeholder_copy = duplicate_string(placeholder);
     if (placeholder_copy == NULL)
     {
         return false;

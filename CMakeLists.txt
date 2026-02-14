@@ -36,6 +36,7 @@ add_executable(
     src/ui/ui_slider.c
     src/ui/ui_text.c
     src/ui/ui_text_input.c
+    src/util/string_util.c
 )
 
 target_include_directories(hello PRIVATE include)
