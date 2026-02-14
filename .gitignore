@@ -57,6 +57,9 @@ dkms.conf
 # CMake build output
 build/
 
+# App window capture helper logs
+*.capture.log
+
 # Locally cloned third-party dependencies
 vendored/*
 !vendored/SDL
