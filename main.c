@@ -6,6 +6,7 @@
 #include "ui/ui_context.h"
 #include "ui/ui_fps_counter.h"
 #include "ui/ui_image.h"
+#include "ui/ui_layout_container.h"
 #include "ui/ui_pane.h"
 #include "ui/ui_slider.h"
 #include "ui/ui_text.h"
@@ -70,6 +71,25 @@ static bool add_element_or_fail(ui_context *context, ui_element *element)
         if (element != NULL && element->ops != NULL && element->ops->destroy != NULL)
         {
             element->ops->destroy(element);
+        }
+        return false;
+    }
+    return true;
+}
+
+// Registers a child with a layout container.
+//
+// Ownership rule:
+// - On success, the container owns the child.
+// - On failure, ownership remains with caller and the child is destroyed here
+//   to avoid leaks at the call site.
+static bool add_child_or_fail(ui_layout_container *container, ui_element *child)
+{
+    if (!ui_layout_container_add_child(container, child))
+    {
+        if (child != NULL && child->ops != NULL && child->ops->destroy != NULL)
+        {
+            child->ops->destroy(child);
         }
         return false;
     }
@@ -172,29 +192,45 @@ int main(void)
     // Sidebar background panel.
     ui_pane *pane = ui_pane_create(&pane_rect, pane_fill_color, &border_color_red);
 
-    // Sidebar labels. Using shared spacing constants keeps vertical rhythm
-    // consistent and makes future layout adjustments straightforward.
-    const float sidebar_text_x = 24.0F;
-    const float sidebar_text_start_y = 40.0F;
-    const float sidebar_text_spacing = 28.0F;
+    // Sidebar stack container: child widgets are auto-positioned vertically.
+    const SDL_FRect sidebar_stack_rect = {16.0F, 32.0F, pane_width - 32.0F,
+                                          (float)WINDOW_HEIGHT - 64.0F};
+    ui_layout_container *sidebar_stack =
+        ui_layout_container_create(&sidebar_stack_rect, UI_LAYOUT_AXIS_VERTICAL, &border_color_red);
+
+    // Sidebar child content.
     const SDL_Color sidebar_text_color =
         (SDL_Color){COLOR_TEXT, COLOR_TEXT, COLOR_TEXT, COLOR_ALPHA_OPAQUE};
     const char *item_1_label = "item 1";
     const char *item_2_label = "item 2";
     const char *item_3_label = "item 3";
-    ui_text *item_1 = ui_text_create(sidebar_text_x, sidebar_text_start_y, item_1_label,
-                                     sidebar_text_color, &border_color_red);
-    ui_text *item_2 = ui_text_create(sidebar_text_x, sidebar_text_start_y + sidebar_text_spacing,
-                                     item_2_label, sidebar_text_color, &border_color_red);
+    ui_text *item_1 =
+        ui_text_create(0.0F, 0.0F, item_1_label, sidebar_text_color, &border_color_red);
+    ui_text *item_2 =
+        ui_text_create(0.0F, 0.0F, item_2_label, sidebar_text_color, &border_color_red);
     ui_text *item_3 =
-        ui_text_create(sidebar_text_x, sidebar_text_start_y + sidebar_text_spacing * 2.0F,
-                       item_3_label, sidebar_text_color, &border_color_red);
+        ui_text_create(0.0F, 0.0F, item_3_label, sidebar_text_color, &border_color_red);
+    ui_checkbox *checkbox =
+        ui_checkbox_create(0.0F, 0.0F, "toggle me", sidebar_text_color, sidebar_text_color,
+                           sidebar_text_color, false, log_checkbox_change, NULL, &border_color_red);
 
-    // Demo checkbox placed below the sidebar text items.
-    const float checkbox_y = sidebar_text_start_y + (sidebar_text_spacing * 3.0F);
-    ui_checkbox *checkbox = ui_checkbox_create(
-        sidebar_text_x, checkbox_y, "toggle me", sidebar_text_color, sidebar_text_color,
-        sidebar_text_color, false, log_checkbox_change, NULL, &border_color_red);
+    if (!add_child_or_fail(sidebar_stack, (ui_element *)item_1) ||
+        !add_child_or_fail(sidebar_stack, (ui_element *)item_2) ||
+        !add_child_or_fail(sidebar_stack, (ui_element *)item_3) ||
+        !add_child_or_fail(sidebar_stack, (ui_element *)checkbox))
+    {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create or register sidebar children");
+        if (sidebar_stack != NULL && sidebar_stack->base.ops != NULL &&
+            sidebar_stack->base.ops->destroy != NULL)
+        {
+            sidebar_stack->base.ops->destroy((ui_element *)sidebar_stack);
+        }
+        ui_context_destroy(&context);
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return 1;
+    }
 
     // Main button centered within the content area (not the full window).
     // The X position intentionally offsets by `pane_width` so sidebar and content
@@ -211,6 +247,39 @@ int main(void)
         (SDL_Color){COLOR_BUTTON_DOWN, COLOR_BUTTON_DOWN, COLOR_BUTTON_DOWN, COLOR_ALPHA_OPAQUE};
     button_click_handler button_click_handler_fn = log_button_press;
     void *button_click_context = NULL;
+
+    // Horizontal stack demo in the main content area.
+    const SDL_FRect toolbar_stack_rect = {pane_width + (content_width - 360.0F) / 2.0F, 40.0F,
+                                          360.0F, 56.0F};
+    ui_layout_container *toolbar_stack = ui_layout_container_create(
+        &toolbar_stack_rect, UI_LAYOUT_AXIS_HORIZONTAL, &border_color_red);
+    ui_button *toolbar_button_1 =
+        ui_button_create(&(SDL_FRect){0.0F, 0.0F, 96.0F, 32.0F}, button_up_color, button_down_color,
+                         &border_color_red, button_click_handler_fn, button_click_context);
+    ui_button *toolbar_button_2 = ui_button_create(
+        &(SDL_FRect){0.0F, 0.0F, 120.0F, 32.0F}, button_up_color, button_down_color,
+        &border_color_red, button_click_handler_fn, button_click_context);
+    ui_button *toolbar_button_3 =
+        ui_button_create(&(SDL_FRect){0.0F, 0.0F, 72.0F, 32.0F}, button_up_color, button_down_color,
+                         &border_color_red, button_click_handler_fn, button_click_context);
+
+    if (!add_child_or_fail(toolbar_stack, (ui_element *)toolbar_button_1) ||
+        !add_child_or_fail(toolbar_stack, (ui_element *)toolbar_button_2) ||
+        !add_child_or_fail(toolbar_stack, (ui_element *)toolbar_button_3))
+    {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION,
+                     "Failed to create or register horizontal stack children");
+        if (toolbar_stack != NULL && toolbar_stack->base.ops != NULL &&
+            toolbar_stack->base.ops->destroy != NULL)
+        {
+            toolbar_stack->base.ops->destroy((ui_element *)toolbar_stack);
+        }
+        ui_context_destroy(&context);
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return 1;
+    }
 
     // Interactive button that triggers `log_button_press` on click.
     ui_button *button =
@@ -250,10 +319,8 @@ int main(void)
     // If any registration fails, previously-added elements remain owned by
     // `context` and get cleaned up by `ui_context_destroy`.
     if (!add_element_or_fail(&context, (ui_element *)pane) ||
-        !add_element_or_fail(&context, (ui_element *)item_1) ||
-        !add_element_or_fail(&context, (ui_element *)item_2) ||
-        !add_element_or_fail(&context, (ui_element *)item_3) ||
-        !add_element_or_fail(&context, (ui_element *)checkbox) ||
+        !add_element_or_fail(&context, (ui_element *)sidebar_stack) ||
+        !add_element_or_fail(&context, (ui_element *)toolbar_stack) ||
         !add_element_or_fail(&context, (ui_element *)button) ||
         !add_element_or_fail(&context, (ui_element *)icon) ||
         !add_element_or_fail(&context, (ui_element *)slider) ||

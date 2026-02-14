@@ -29,6 +29,7 @@ add_executable(
     src/ui/ui_fps_counter.c
     src/ui/ui_pane.c
     src/ui/ui_image.c
+    src/ui/ui_layout_container.c
     src/ui/ui_slider.c
     src/ui/ui_text.c
 )
