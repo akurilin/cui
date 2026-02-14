@@ -60,6 +60,10 @@ build/
 # App window capture helper logs
 *.capture.log
 
+# macOS Finder metadata
+.DS_Store
+**/.DS_Store
+
 # Locally cloned third-party dependencies
 vendored/*
 !vendored/SDL
