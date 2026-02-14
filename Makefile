@@ -34,7 +34,17 @@ build: configure
 	cmake --build build
 
 run: build
-	./build/hello
+	@if [ -x ./build/Debug/hello ]; then \
+		./build/Debug/hello; \
+	elif [ -x ./build/Release/hello ]; then \
+		./build/Release/hello; \
+	elif [ -x ./build/hello ]; then \
+		./build/hello; \
+	else \
+		echo "Could not find executable: hello"; \
+		echo "Expected one of: ./build/Debug/hello, ./build/Release/hello, ./build/hello"; \
+		exit 1; \
+	fi
 
 clean:
 	rm -rf build

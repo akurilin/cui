@@ -23,8 +23,14 @@ Every concrete widget embeds `ui_element` as its first field for safe polymorphi
 Use the Makefile for day-to-day work:
 
 - `make build`: configure and compile the project.
-- `make run`: build and run `./build/hello`.
+- `make run`: build and run `hello` (supports `build/Debug/hello`, `build/Release/hello`, or `build/hello`).
 - `make clean`: remove the build directory.
+
+Execution compatibility requirement:
+
+- Do not introduce changes that break app launch through either path:
+  - `make run`
+  - VS Code `Debug hello` launch configuration (`.vscode/launch.json`, program `build/Debug/hello`)
 
 Equivalent raw CMake commands:
 
