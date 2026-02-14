@@ -3,11 +3,11 @@
 
 # Project description
 
-This project attempts to create a UI system built entirely in the C language and leveraging SDL, targeting specifically macOS. It's a learning project to master the fundamentals of UI building and the C language starting from the low level, letting SDL take care of some of the foundations, but taking over the rest of it.
+This project is focused on building a reusable UI kit in C using SDL3, currently targeting macOS. The `todo_page` is a sample application that demonstrates how to compose and run a real screen using the kit's widgets, layout, and event system.
 
 ## Current UI
 
-Captured on February 14, 2026 from the current `main` page:
+Captured on February 14, 2026 from the current TODO sample page:
 
 ![Main page UI screenshot (2026-02-14)](assets/screenshots/main-page-2026-02-14.png)
 
@@ -16,10 +16,10 @@ SDL and SDL_image are brought in as Git submodules at `vendored/SDL` and
 
 ## Architecture Overview
 
-The app is split into a small application shell (`main.c`), a page layer (`include/pages`, `src/pages`), and a reusable UI layer (`include/ui`, `src/ui`).
+The codebase is split into a reusable UI kit (`include/ui`, `src/ui`) and an example app layer (`include/pages`, `src/pages`) hosted by a small application shell (`main.c`).
 
 - `main.c` is composition/root wiring only: create window/renderer, initialize `ui_context`, create the active page, and run the main loop.
-- `todo_page` owns todo-specific model state and UI composition for the current screen.
+- `todo_page` is the sample TODO app and owns todo-specific model state plus screen-level UI composition.
 - `ui_context` is the lifecycle owner + dispatcher for all elements.
 - `ui_element` is the common base interface for polymorphism in C.
 
@@ -129,7 +129,7 @@ cmake --build build
 ## Makefile shortcuts:
 ```
 make build    # configure + build
-make run      # build + run ./build/Debug/cui
+make run      # build + run build/Debug/cui, build/Release/cui, or build/cui
 make clean    # remove build directory
 make format   # apply clang-format to non-vendored .c/.h files
 make lint     # run clang-tidy checks
@@ -168,10 +168,13 @@ export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
 ```
 
 ## Run:
-The executable is generated under the build configuration directory:
+The executable is generated under the build configuration directory. Depending
+on your generator/configuration, run one of:
 
 ```
 ./build/Debug/cui
+./build/Release/cui
+./build/cui
 ```
 
 ## Submodule workflow
