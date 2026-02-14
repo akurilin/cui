@@ -34,15 +34,15 @@ build: configure
 	cmake --build build
 
 run: build
-	@if [ -x ./build/Debug/hello ]; then \
-		./build/Debug/hello; \
-	elif [ -x ./build/Release/hello ]; then \
-		./build/Release/hello; \
-	elif [ -x ./build/hello ]; then \
-		./build/hello; \
+	@if [ -x ./build/Debug/cui ]; then \
+		./build/Debug/cui; \
+	elif [ -x ./build/Release/cui ]; then \
+		./build/Release/cui; \
+	elif [ -x ./build/cui ]; then \
+		./build/cui; \
 	else \
-		echo "Could not find executable: hello"; \
-		echo "Expected one of: ./build/Debug/hello, ./build/Release/hello, ./build/hello"; \
+		echo "Could not find executable: cui"; \
+		echo "Expected one of: ./build/Debug/cui, ./build/Release/cui, ./build/cui"; \
 		exit 1; \
 	fi
 

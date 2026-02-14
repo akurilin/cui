@@ -2,10 +2,10 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug hello",
+            "name": "Debug cui",
             "type": "lldb",
             "request": "launch",
-            "program": "${workspaceFolder}/build/Debug/hello",
+            "program": "${workspaceFolder}/build/Debug/cui",
             "cwd": "${workspaceFolder}",
             "preLaunchTask": "CMake Build (Debug)"
         }

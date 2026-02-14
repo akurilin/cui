@@ -23,14 +23,14 @@ Every concrete widget embeds `ui_element` as its first field for safe polymorphi
 Use the Makefile for day-to-day work:
 
 - `make build`: configure and compile the project.
-- `make run`: build and run `hello` (supports `build/Debug/hello`, `build/Release/hello`, or `build/hello`).
+- `make run`: build and run `cui` (supports `build/Debug/cui`, `build/Release/cui`, or `build/cui`).
 - `make clean`: remove the build directory.
 
 Execution compatibility requirement:
 
 - Do not introduce changes that break app launch through either path:
   - `make run`
-  - VS Code `Debug hello` launch configuration (`.vscode/launch.json`, program `build/Debug/hello`)
+  - VS Code `Debug cui` launch configuration (`.vscode/launch.json`, program `build/Debug/cui`)
 
 Equivalent raw CMake commands:
 
@@ -68,8 +68,8 @@ When tests are added, place them under `tests/` and wire them into CMake/CTest (
 For every UI change, validate independently without user involvement by following this process:
 
 1. `make build`
-2. Run the app (`./build/hello`) and keep it open long enough to render
-3. Capture a window-only screenshot from the command line using `scripts/capture_app_window.sh` (for example `./scripts/capture_app_window.sh ./build/Debug/hello /tmp/cui-shots/hello-window.png`)
+2. Run the app (`./build/cui`) and keep it open long enough to render
+3. Capture a window-only screenshot from the command line using `scripts/capture_app_window.sh` (for example `./scripts/capture_app_window.sh ./build/Debug/cui /tmp/cui-shots/cui-window.png`)
 4. Inspect the captured image and compare it against the requested UI behavior
 5. Report whether the UI change succeeded and list any visible issues or follow-up fixes
 

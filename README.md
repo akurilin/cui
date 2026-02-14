@@ -115,7 +115,7 @@ cmake --build build
 ## Makefile shortcuts:
 ```
 make build    # configure + build
-make run      # build + run ./build/Debug/hello
+make run      # build + run ./build/Debug/cui
 make clean    # remove build directory
 make format   # apply clang-format to non-vendored .c/.h files
 make lint     # run clang-tidy checks
@@ -157,7 +157,7 @@ export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
 The executable is generated under the build configuration directory:
 
 ```
-./build/Debug/hello
+./build/Debug/cui
 ```
 
 ## Submodule workflow
