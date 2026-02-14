@@ -22,6 +22,7 @@ add_executable(
     hello
     WIN32
     main.c
+    src/pages/todo_page.c
     src/ui/ui_button.c
     src/ui/ui_checkbox.c
     src/ui/ui_context.c

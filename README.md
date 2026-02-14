@@ -5,6 +5,12 @@
 
 This project attempts to create a UI system built entirely in the C language and leveraging SDL, targeting specifically macOS. It's a learning project to master the fundamentals of UI building and the C language starting from the low level, letting SDL take care of some of the foundations, but taking over the rest of it.
 
+## Current UI
+
+Captured on February 14, 2026 from the current `main` page:
+
+![Main page UI screenshot (2026-02-14)](assets/screenshots/main-page-2026-02-14.png)
+
 SDL and SDL_image are brought in as Git submodules at `vendored/SDL` and
 `vendored/SDL_image`.
 
