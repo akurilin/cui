@@ -10,6 +10,7 @@
 #include "ui/ui_pane.h"
 #include "ui/ui_slider.h"
 #include "ui/ui_text.h"
+#include "ui/ui_text_input.h"
 
 #include <stdbool.h>
 #include <stdio.h>
@@ -304,6 +305,21 @@ int main(void)
         ui_slider_create(&slider_rect, 0.0F, 100.0F, 50.0F, sidebar_text_color, button_up_color,
                          button_down_color, &border_color_red, log_slider_change, NULL);
 
+    // Demo text input below the slider in the content area.
+    const SDL_FRect text_input_rect = {
+        pane_width + ((content_width - 240.0F) / 2.0F),
+        slider_rect.y + slider_rect.h + 32.0F,
+        240.0F,
+        20.0F,
+    };
+    const SDL_Color text_input_bg =
+        (SDL_Color){COLOR_PANE, COLOR_PANE, COLOR_PANE, COLOR_ALPHA_OPAQUE};
+    const SDL_Color focused_border_color =
+        (SDL_Color){COLOR_TEXT, COLOR_TEXT, COLOR_TEXT, COLOR_ALPHA_OPAQUE};
+    ui_text_input *text_input =
+        ui_text_input_create(&text_input_rect, sidebar_text_color, text_input_bg, border_color_red,
+                             focused_border_color, window);
+
     // FPS counter overlays diagnostic text in the window's lower-right area.
     // Viewport dimensions are supplied so the element can anchor itself
     // correctly regardless of frame timing.
@@ -324,6 +340,7 @@ int main(void)
         !add_element_or_fail(&context, (ui_element *)button) ||
         !add_element_or_fail(&context, (ui_element *)icon) ||
         !add_element_or_fail(&context, (ui_element *)slider) ||
+        !add_element_or_fail(&context, (ui_element *)text_input) ||
         !add_element_or_fail(&context, (ui_element *)fps_counter))
     {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create or register UI elements");

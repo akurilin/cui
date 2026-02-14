@@ -34,7 +34,7 @@ build: configure
 	cmake --build build
 
 run: build
-	./build/Debug/hello
+	./build/hello
 
 clean:
 	rm -rf build
