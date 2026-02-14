@@ -72,4 +72,5 @@ Git history is currently minimal, so no strict convention is established yet. Us
 
 - Commit messages: imperative, concise subject (for example, `Add Makefile run target`).
 - Keep commits focused on one logical change.
+- If multiple changes are logically unrelated, split them into separate commits.
 - PRs should include: what changed, why, how it was validated (`make build`/`make run`), and any follow-up work.
