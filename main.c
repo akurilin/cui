@@ -5,6 +5,7 @@
 #include "ui/ui_checkbox.h"
 #include "ui/ui_context.h"
 #include "ui/ui_fps_counter.h"
+#include "ui/ui_hrule.h"
 #include "ui/ui_image.h"
 #include "ui/ui_layout_container.h"
 #include "ui/ui_pane.h"
@@ -264,6 +265,13 @@ int main(void)
         SDL_Quit();
         return 1;
     }
+    // Horizontal divider between primary sidebar items and extra items.
+    ui_hrule *sidebar_divider = ui_hrule_create(1.0F, sidebar_text_color, 0.05F);
+    if (sidebar_divider != NULL)
+    {
+        ui_layout_container_add_child(sidebar_stack, (ui_element *)sidebar_divider);
+    }
+
     for (size_t i = 0; i < EXTRA_ITEM_COUNT; ++i)
     {
         if (extra_items[i] != NULL)
