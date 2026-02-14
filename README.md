@@ -34,6 +34,7 @@ ui_element (base type)
   -> ui_text
   -> ui_image
   -> ui_slider
+  -> ui_hrule
   -> ui_fps_counter
 ```
 
@@ -58,6 +59,7 @@ Key files:
 - `include/ui/ui_button.h`, `src/ui/ui_button.c`: clickable element with press/release semantics and callback.
 - `include/ui/ui_checkbox.h`, `src/ui/ui_checkbox.c`: labeled toggle control with boolean change callback.
 - `include/ui/ui_text.h`, `src/ui/ui_text.c`: static debug-text element.
+- `include/ui/ui_hrule.h`, `src/ui/ui_hrule.c`: thin horizontal divider line with configurable inset.
 - `include/ui/ui_image.h`, `src/ui/ui_image.c`: image element with fallback texture behavior.
 - `include/ui/ui_slider.h`, `src/ui/ui_slider.c`: horizontal slider with min/max range and value callback.
 - `include/ui/ui_fps_counter.h`, `src/ui/ui_fps_counter.c`: self-updating FPS label anchored to viewport bottom-right.
