@@ -55,6 +55,13 @@ static void log_slider_change(float value, void *context)
     fflush(stdout);
 }
 
+static void log_text_input_submit(const char *value, void *context)
+{
+    (void)context;
+    printf("text input submit: \"%s\"\n", value);
+    fflush(stdout);
+}
+
 // Registers a UI element with the root UI context.
 //
 // Why this helper exists:
@@ -214,6 +221,10 @@ int main(void)
     ui_checkbox *checkbox =
         ui_checkbox_create(0.0F, 0.0F, "toggle me", sidebar_text_color, sidebar_text_color,
                            sidebar_text_color, false, log_checkbox_change, NULL, &border_color_red);
+    bool sidebar_item_1_in_stack = item_1 != NULL;
+    bool sidebar_item_2_in_stack = item_2 != NULL;
+    bool sidebar_item_3_in_stack = item_3 != NULL;
+    bool checkbox_in_stack = checkbox != NULL;
 
     if (!add_child_or_fail(sidebar_stack, (ui_element *)item_1) ||
         !add_child_or_fail(sidebar_stack, (ui_element *)item_2) ||
@@ -318,7 +329,7 @@ int main(void)
         (SDL_Color){COLOR_TEXT, COLOR_TEXT, COLOR_TEXT, COLOR_ALPHA_OPAQUE};
     ui_text_input *text_input =
         ui_text_input_create(&text_input_rect, sidebar_text_color, text_input_bg, border_color_red,
-                             focused_border_color, window);
+                             focused_border_color, window, log_text_input_submit, NULL);
 
     // FPS counter overlays diagnostic text in the window's lower-right area.
     // Viewport dimensions are supplied so the element can anchor itself
@@ -330,6 +341,12 @@ int main(void)
         (SDL_Color){COLOR_TEXT, COLOR_TEXT, COLOR_TEXT, COLOR_ALPHA_OPAQUE};
     ui_fps_counter *fps_counter = ui_fps_counter_create(
         fps_viewport_width, fps_viewport_height, fps_padding, fps_text_color, &border_color_red);
+    bool fps_counter_in_context = fps_counter != NULL;
+
+    ui_text *debug_text = ui_text_create(pane_width + 24.0F, (float)WINDOW_HEIGHT - 48.0F,
+                                         "F1-F11: debug controls", sidebar_text_color, NULL);
+    int dynamic_text_counter = 0;
+    bool button_label_toggled = false;
 
     // Register all created elements with the UI context.
     // If any registration fails, previously-added elements remain owned by
@@ -341,7 +358,8 @@ int main(void)
         !add_element_or_fail(&context, (ui_element *)icon) ||
         !add_element_or_fail(&context, (ui_element *)slider) ||
         !add_element_or_fail(&context, (ui_element *)text_input) ||
-        !add_element_or_fail(&context, (ui_element *)fps_counter))
+        !add_element_or_fail(&context, (ui_element *)fps_counter) ||
+        !add_element_or_fail(&context, (ui_element *)debug_text))
     {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create or register UI elements");
         ui_context_destroy(&context);
@@ -364,6 +382,13 @@ int main(void)
     // 4) render the current frame
     // 5) present rendered frame to the screen
     bool running = true;
+    bool last_button_pressed = false;
+    puts("Debug controls:");
+    puts("F1 toggle fps in context, F2 remove item2, F3 add item2, F4 clear sidebar children");
+    puts("F5 restore sidebar children, F6 set dynamic text, F7 set input, F8 clear input");
+    puts("F9 toggle checkbox (notify), F10 toggle button label, F11 print input focus");
+    fflush(stdout);
+
     while (running)
     {
         // Delta time lets update logic remain frame-rate independent.
@@ -384,7 +409,150 @@ int main(void)
                 running = false;
                 continue;
             }
+
+            if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat)
+            {
+                if (event.key.key == SDLK_F1)
+                {
+                    if (fps_counter_in_context)
+                    {
+                        const bool removed =
+                            ui_context_remove(&context, (ui_element *)fps_counter, false);
+                        fps_counter_in_context = !removed;
+                        printf("F1: ui_context_remove(fps_counter) -> %s\n",
+                               removed ? "true" : "false");
+                    }
+                    else
+                    {
+                        const bool added = ui_context_add(&context, (ui_element *)fps_counter);
+                        fps_counter_in_context = added;
+                        printf("F1: ui_context_add(fps_counter) -> %s\n", added ? "true" : "false");
+                    }
+                    fflush(stdout);
+                }
+                else if (event.key.key == SDLK_F2)
+                {
+                    const bool removed = ui_layout_container_remove_child(
+                        sidebar_stack, (ui_element *)item_2, false);
+                    if (removed)
+                    {
+                        sidebar_item_2_in_stack = false;
+                    }
+                    printf("F2: remove item_2 -> %s\n", removed ? "true" : "false");
+                    fflush(stdout);
+                }
+                else if (event.key.key == SDLK_F3)
+                {
+                    bool added = false;
+                    if (!sidebar_item_2_in_stack)
+                    {
+                        added = ui_layout_container_add_child(sidebar_stack, (ui_element *)item_2);
+                        if (added)
+                        {
+                            sidebar_item_2_in_stack = true;
+                        }
+                    }
+                    printf("F3: add item_2 -> %s\n", added ? "true" : "false");
+                    fflush(stdout);
+                }
+                else if (event.key.key == SDLK_F4)
+                {
+                    ui_layout_container_clear_children(sidebar_stack, false);
+                    sidebar_item_1_in_stack = false;
+                    sidebar_item_2_in_stack = false;
+                    sidebar_item_3_in_stack = false;
+                    checkbox_in_stack = false;
+                    puts("F4: cleared sidebar children (destroy=false)");
+                    fflush(stdout);
+                }
+                else if (event.key.key == SDLK_F5)
+                {
+                    bool ok = true;
+                    if (!sidebar_item_1_in_stack)
+                    {
+                        ok = ok &&
+                             ui_layout_container_add_child(sidebar_stack, (ui_element *)item_1);
+                        sidebar_item_1_in_stack = ok;
+                    }
+                    if (!sidebar_item_2_in_stack)
+                    {
+                        const bool added =
+                            ui_layout_container_add_child(sidebar_stack, (ui_element *)item_2);
+                        ok = ok && added;
+                        sidebar_item_2_in_stack = sidebar_item_2_in_stack || added;
+                    }
+                    if (!sidebar_item_3_in_stack)
+                    {
+                        const bool added =
+                            ui_layout_container_add_child(sidebar_stack, (ui_element *)item_3);
+                        ok = ok && added;
+                        sidebar_item_3_in_stack = sidebar_item_3_in_stack || added;
+                    }
+                    if (!checkbox_in_stack)
+                    {
+                        const bool added =
+                            ui_layout_container_add_child(sidebar_stack, (ui_element *)checkbox);
+                        ok = ok && added;
+                        checkbox_in_stack = checkbox_in_stack || added;
+                    }
+                    printf("F5: restore sidebar children -> %s\n", ok ? "true" : "false");
+                    fflush(stdout);
+                }
+                else if (event.key.key == SDLK_F6)
+                {
+                    char label[64];
+                    dynamic_text_counter++;
+                    snprintf(label, sizeof(label), "dynamic text #%d", dynamic_text_counter);
+                    const bool set_ok = ui_text_set_content(item_1, label);
+                    printf("F6: ui_text_set_content -> %s, current=\"%s\"\n",
+                           set_ok ? "true" : "false", ui_text_get_content(item_1));
+                    fflush(stdout);
+                }
+                else if (event.key.key == SDLK_F7)
+                {
+                    const bool set_ok = ui_text_input_set_value(text_input, "prefilled task");
+                    printf("F7: ui_text_input_set_value -> %s, value=\"%s\"\n",
+                           set_ok ? "true" : "false", ui_text_input_get_value(text_input));
+                    fflush(stdout);
+                }
+                else if (event.key.key == SDLK_F8)
+                {
+                    ui_text_input_clear(text_input);
+                    printf("F8: ui_text_input_clear, value=\"%s\"\n",
+                           ui_text_input_get_value(text_input));
+                    fflush(stdout);
+                }
+                else if (event.key.key == SDLK_F9)
+                {
+                    const bool next_checked = !ui_checkbox_is_checked(checkbox);
+                    ui_checkbox_set_checked(checkbox, next_checked, true);
+                    printf("F9: ui_checkbox_set_checked(notify=true), checked=%s\n",
+                           ui_checkbox_is_checked(checkbox) ? "true" : "false");
+                    fflush(stdout);
+                }
+                else if (event.key.key == SDLK_F10)
+                {
+                    button_label_toggled = !button_label_toggled;
+                    ui_button_set_label(button, button_label_toggled ? "press me" : "click me");
+                    printf("F10: ui_button_set_label, label=\"%s\"\n", ui_button_get_label(button));
+                    fflush(stdout);
+                }
+                else if (event.key.key == SDLK_F11)
+                {
+                    printf("F11: ui_text_input_is_focused -> %s\n",
+                           ui_text_input_is_focused(text_input) ? "true" : "false");
+                    fflush(stdout);
+                }
+            }
             ui_context_handle_event(&context, &event);
+        }
+
+        const bool button_pressed_now = ui_button_is_pressed(button);
+        if (button_pressed_now != last_button_pressed)
+        {
+            printf("button pressed state changed -> %s\n", button_pressed_now ? "true" : "false");
+            fflush(stdout);
+            last_button_pressed = button_pressed_now;
         }
 
         // Update pass: lets animated/time-dependent widgets advance state.

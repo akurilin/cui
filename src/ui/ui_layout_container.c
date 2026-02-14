@@ -67,20 +67,25 @@ static void layout_children(ui_layout_container *container)
     }
 }
 
-static void handle_layout_container_event(ui_element *element, const SDL_Event *event)
+static bool handle_layout_container_event(ui_element *element, const SDL_Event *event)
 {
     ui_layout_container *container = (ui_layout_container *)element;
     layout_children(container);
 
-    for (size_t i = 0; i < container->child_count; ++i)
+    for (size_t i = container->child_count; i > 0U; --i)
     {
-        ui_element *child = container->children[i];
+        ui_element *child = container->children[i - 1U];
         if (!is_valid_element(child) || !child->enabled || child->ops->handle_event == NULL)
         {
             continue;
         }
-        child->ops->handle_event(child, event);
+        if (child->ops->handle_event(child, event))
+        {
+            return true;
+        }
     }
+
+    return false;
 }
 
 static void update_layout_container(ui_element *element, float delta_seconds)
@@ -197,4 +202,57 @@ bool ui_layout_container_add_child(ui_layout_container *container, ui_element *c
 
     container->children[container->child_count++] = child;
     return true;
+}
+
+bool ui_layout_container_remove_child(ui_layout_container *container, ui_element *child,
+                                      bool destroy_child)
+{
+    if (container == NULL || !is_valid_element(child))
+    {
+        return false;
+    }
+
+    for (size_t i = 0; i < container->child_count; ++i)
+    {
+        if (container->children[i] != child)
+        {
+            continue;
+        }
+
+        if (destroy_child && child->ops->destroy != NULL)
+        {
+            child->ops->destroy(child);
+        }
+
+        for (size_t j = i; j + 1U < container->child_count; ++j)
+        {
+            container->children[j] = container->children[j + 1U];
+        }
+        container->child_count--;
+        return true;
+    }
+
+    return false;
+}
+
+void ui_layout_container_clear_children(ui_layout_container *container, bool destroy_children)
+{
+    if (container == NULL)
+    {
+        return;
+    }
+
+    if (destroy_children)
+    {
+        for (size_t i = 0; i < container->child_count; ++i)
+        {
+            ui_element *child = container->children[i];
+            if (is_valid_element(child) && child->ops->destroy != NULL)
+            {
+                child->ops->destroy(child);
+            }
+        }
+    }
+
+    container->child_count = 0;
 }

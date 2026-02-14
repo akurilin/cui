@@ -2,10 +2,11 @@
 
 #include <stdlib.h>
 
-static void handle_pane_event(ui_element *element, const SDL_Event *event)
+static bool handle_pane_event(ui_element *element, const SDL_Event *event)
 {
     (void)element;
     (void)event;
+    return false;
 }
 
 static void update_pane(ui_element *element, float delta_seconds)

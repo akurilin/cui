@@ -57,4 +57,19 @@ ui_checkbox *ui_checkbox_create(float x, float y, const char *label, SDL_Color b
                                 bool initially_checked, checkbox_change_handler on_change,
                                 void *on_change_context, const SDL_Color *border_color);
 
+/*
+ * Return the current checked state.
+ */
+bool ui_checkbox_is_checked(const ui_checkbox *checkbox);
+
+/*
+ * Set the checked state.
+ *
+ * Parameters:
+ * - checkbox: destination checkbox
+ * - checked: new state
+ * - notify: when true and state changes, invoke on_change callback
+ */
+void ui_checkbox_set_checked(ui_checkbox *checkbox, bool checked, bool notify);
+
 #endif

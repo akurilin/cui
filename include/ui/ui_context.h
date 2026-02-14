@@ -39,7 +39,29 @@ void ui_context_destroy(ui_context *context);
 bool ui_context_add(ui_context *context, ui_element *element);
 
 /*
- * Dispatch a single SDL event to each enabled element that implements handle_event.
+ * Remove one element from the context.
+ *
+ * Behavior:
+ * - Matches by pointer identity.
+ * - Preserves relative order of remaining elements.
+ * - Optionally destroys the removed element.
+ *
+ * Parameters:
+ * - context: root UI context
+ * - element: element pointer previously added to this context
+ * - destroy_element: when true, call element->ops->destroy before removal returns
+ *
+ * Returns:
+ * - true when an element was found and removed
+ * - false when context/element is invalid or element is not present
+ */
+bool ui_context_remove(ui_context *context, ui_element *element, bool destroy_element);
+
+/*
+ * Dispatch a single SDL event to enabled elements from front to back
+ * (reverse insertion order).
+ *
+ * Dispatch stops at the first element whose handle_event returns true.
  */
 void ui_context_handle_event(ui_context *context, const SDL_Event *event);
 

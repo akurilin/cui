@@ -18,10 +18,11 @@ static void update_fps_label(ui_fps_counter *counter)
     counter->base.rect.y = (float)counter->viewport_height - counter->padding - DEBUG_GLYPH_HEIGHT;
 }
 
-static void handle_fps_counter_event(ui_element *element, const SDL_Event *event)
+static bool handle_fps_counter_event(ui_element *element, const SDL_Event *event)
 {
     (void)element;
     (void)event;
+    return false;
 }
 
 static void update_fps_counter(ui_element *element, float delta_seconds)

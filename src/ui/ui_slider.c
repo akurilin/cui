@@ -59,7 +59,7 @@ static void set_slider_value_from_cursor(ui_slider *slider, float cursor_x)
     }
 }
 
-static void handle_slider_event(ui_element *element, const SDL_Event *event)
+static bool handle_slider_event(ui_element *element, const SDL_Event *event)
 {
     ui_slider *slider = (ui_slider *)element;
 
@@ -70,14 +70,15 @@ static void handle_slider_event(ui_element *element, const SDL_Event *event)
         {
             slider->is_dragging = true;
             set_slider_value_from_cursor(slider, event->button.x);
+            return true;
         }
-        return;
+        return false;
     }
 
     if (event->type == SDL_EVENT_MOUSE_MOTION && slider->is_dragging)
     {
         set_slider_value_from_cursor(slider, event->motion.x);
-        return;
+        return true;
     }
 
     if (event->type == SDL_EVENT_MOUSE_BUTTON_UP && event->button.button == SDL_BUTTON_LEFT)
@@ -86,8 +87,11 @@ static void handle_slider_event(ui_element *element, const SDL_Event *event)
         {
             set_slider_value_from_cursor(slider, event->button.x);
             slider->is_dragging = false;
+            return true;
         }
     }
+
+    return false;
 }
 
 static void update_slider(ui_element *element, float delta_seconds)

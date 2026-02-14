@@ -66,6 +66,36 @@ bool ui_context_add(ui_context *context, ui_element *element)
     return true;
 }
 
+bool ui_context_remove(ui_context *context, ui_element *element, bool destroy_element)
+{
+    if (context == NULL || !is_valid_element(element))
+    {
+        return false;
+    }
+
+    for (size_t i = 0; i < context->element_count; ++i)
+    {
+        if (context->elements[i] != element)
+        {
+            continue;
+        }
+
+        if (destroy_element && element->ops->destroy != NULL)
+        {
+            element->ops->destroy(element);
+        }
+
+        for (size_t j = i; j + 1U < context->element_count; ++j)
+        {
+            context->elements[j] = context->elements[j + 1U];
+        }
+        context->element_count--;
+        return true;
+    }
+
+    return false;
+}
+
 void ui_context_handle_event(ui_context *context, const SDL_Event *event)
 {
     if (context == NULL || event == NULL)
@@ -73,14 +103,17 @@ void ui_context_handle_event(ui_context *context, const SDL_Event *event)
         return;
     }
 
-    for (size_t i = 0; i < context->element_count; ++i)
+    for (size_t i = context->element_count; i > 0U; --i)
     {
-        ui_element *element = context->elements[i];
+        ui_element *element = context->elements[i - 1U];
         if (!is_valid_element(element) || !element->enabled || element->ops->handle_event == NULL)
         {
             continue;
         }
-        element->ops->handle_event(element, event);
+        if (element->ops->handle_event(element, event))
+        {
+            return;
+        }
     }
 }
 

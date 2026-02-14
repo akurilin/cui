@@ -91,4 +91,33 @@ ui_layout_container *ui_layout_container_create(const SDL_FRect *rect, ui_layout
  */
 bool ui_layout_container_add_child(ui_layout_container *container, ui_element *child);
 
+/*
+ * Remove one child from a layout container.
+ *
+ * Behavior:
+ * - Matches by pointer identity.
+ * - Preserves relative order of remaining children.
+ * - Optionally destroys the removed child.
+ *
+ * Parameters:
+ * - container: source layout container
+ * - child: child pointer previously added to this container
+ * - destroy_child: when true, call child->ops->destroy before returning
+ *
+ * Returns:
+ * - true when a child was found and removed
+ * - false on invalid args or if child is not present
+ */
+bool ui_layout_container_remove_child(ui_layout_container *container, ui_element *child,
+                                      bool destroy_child);
+
+/*
+ * Remove all children from a layout container.
+ *
+ * Parameters:
+ * - container: source layout container
+ * - destroy_children: when true, destroy each removed child
+ */
+void ui_layout_container_clear_children(ui_layout_container *container, bool destroy_children);
+
 #endif

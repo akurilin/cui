@@ -23,8 +23,13 @@ typedef struct ui_element_ops
     /*
      * Process one SDL event for this element.
      * Called only when the element is enabled.
+     *
+     * Return:
+     * - true when the element consumed/handled the event and propagation
+     *   should stop for elements behind it.
+     * - false when the event was not handled.
      */
-    void (*handle_event)(ui_element *element, const SDL_Event *event);
+    bool (*handle_event)(ui_element *element, const SDL_Event *event);
 
     /*
      * Advance element state by delta_seconds.

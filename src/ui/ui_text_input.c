@@ -12,7 +12,29 @@ static const float CARET_WIDTH = 2.0F;
 static const float HALF = 0.5F;
 static const float PADDING_SIDES = 2.0F;
 
-static void handle_text_input_event(ui_element *element, const SDL_Event *event)
+static void set_focus(ui_text_input *input, bool focused)
+{
+    if (input == NULL || input->is_focused == focused)
+    {
+        return;
+    }
+
+    input->is_focused = focused;
+    input->caret_blink_timer = 0.0F;
+    input->base.border_color =
+        focused ? input->focused_border_color : input->unfocused_border_color;
+
+    if (focused)
+    {
+        SDL_StartTextInput(input->window);
+    }
+    else
+    {
+        SDL_StopTextInput(input->window);
+    }
+}
+
+static bool handle_text_input_event(ui_element *element, const SDL_Event *event)
 {
     ui_text_input *input = (ui_text_input *)element;
 
@@ -20,25 +42,13 @@ static void handle_text_input_event(ui_element *element, const SDL_Event *event)
     {
         const SDL_FPoint cursor = {event->button.x, event->button.y};
         const bool inside = SDL_PointInRectFloat(&cursor, &input->base.rect);
-
-        if (inside && !input->is_focused)
-        {
-            input->is_focused = true;
-            input->caret_blink_timer = 0.0F;
-            input->base.border_color = input->focused_border_color;
-            SDL_StartTextInput(input->window);
-        }
-        else if (!inside && input->is_focused)
-        {
-            input->is_focused = false;
-            input->base.border_color = input->unfocused_border_color;
-        }
-        return;
+        set_focus(input, inside);
+        return inside;
     }
 
     if (!input->is_focused)
     {
-        return;
+        return false;
     }
 
     if (event->type == SDL_EVENT_TEXT_INPUT)
@@ -57,18 +67,33 @@ static void handle_text_input_event(ui_element *element, const SDL_Event *event)
             input->buffer[input->length] = '\0';
             input->caret_blink_timer = 0.0F;
         }
-        return;
+        return true;
     }
 
-    if (event->type == SDL_EVENT_KEY_DOWN && event->key.key == SDLK_BACKSPACE)
+    if (event->type == SDL_EVENT_KEY_DOWN)
     {
-        if (input->length > 0)
+        if (event->key.key == SDLK_BACKSPACE)
         {
-            input->length--;
-            input->buffer[input->length] = '\0';
-            input->caret_blink_timer = 0.0F;
+            if (input->length > 0)
+            {
+                input->length--;
+                input->buffer[input->length] = '\0';
+                input->caret_blink_timer = 0.0F;
+            }
+            return true;
+        }
+
+        if (event->key.key == SDLK_RETURN || event->key.key == SDLK_KP_ENTER)
+        {
+            if (input->on_submit != NULL)
+            {
+                input->on_submit(input->buffer, input->on_submit_context);
+            }
+            return true;
         }
     }
+
+    return false;
 }
 
 static void update_text_input(ui_element *element, float delta_seconds)
@@ -145,7 +170,8 @@ static const ui_element_ops TEXT_INPUT_OPS = {
 // NOLINTBEGIN(bugprone-easily-swappable-parameters)
 ui_text_input *ui_text_input_create(const SDL_FRect *rect, SDL_Color text_color,
                                     SDL_Color background_color, SDL_Color border_color,
-                                    SDL_Color focused_border_color, SDL_Window *window)
+                                    SDL_Color focused_border_color, SDL_Window *window,
+                                    text_input_submit_handler on_submit, void *on_submit_context)
 // NOLINTEND(bugprone-easily-swappable-parameters)
 {
     if (rect == NULL || rect->w <= 0.0F || rect->h <= 0.0F || window == NULL)
@@ -183,6 +209,8 @@ ui_text_input *ui_text_input_create(const SDL_FRect *rect, SDL_Color text_color,
     input->unfocused_border_color = border_color;
     input->caret_blink_timer = 0.0F;
     input->window = window;
+    input->on_submit = on_submit;
+    input->on_submit_context = on_submit_context;
 
     return input;
 }
@@ -194,4 +222,44 @@ const char *ui_text_input_get_value(const ui_text_input *input)
         return "";
     }
     return input->buffer;
+}
+
+bool ui_text_input_set_value(ui_text_input *input, const char *value)
+{
+    if (input == NULL || value == NULL)
+    {
+        return false;
+    }
+
+    size_t value_length = strlen(value);
+    if (value_length > input->max_length)
+    {
+        value_length = input->max_length;
+    }
+
+    memcpy(input->buffer, value, value_length);
+    input->buffer[value_length] = '\0';
+    input->length = value_length;
+    input->caret_blink_timer = 0.0F;
+    return true;
+}
+
+void ui_text_input_clear(ui_text_input *input)
+{
+    if (input == NULL)
+    {
+        return;
+    }
+    input->buffer[0] = '\0';
+    input->length = 0;
+    input->caret_blink_timer = 0.0F;
+}
+
+bool ui_text_input_is_focused(const ui_text_input *input)
+{
+    if (input == NULL)
+    {
+        return false;
+    }
+    return input->is_focused;
 }

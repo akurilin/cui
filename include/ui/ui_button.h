@@ -41,4 +41,22 @@ ui_button *ui_button_create(const SDL_FRect *rect, SDL_Color up_color, SDL_Color
                             const char *label, const SDL_Color *border_color,
                             button_click_handler on_click, void *on_click_context);
 
+/*
+ * Return whether the button is currently in pressed state.
+ */
+bool ui_button_is_pressed(const ui_button *button);
+
+/*
+ * Read the current borrowed label pointer.
+ */
+const char *ui_button_get_label(const ui_button *button);
+
+/*
+ * Replace the button label pointer (borrowed, not copied).
+ *
+ * The caller owns the lifetime of label and must keep it valid while the
+ * button is rendered.
+ */
+void ui_button_set_label(ui_button *button, const char *label);
+
 #endif

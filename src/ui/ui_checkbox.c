@@ -16,7 +16,22 @@ static const float DEBUG_CHAR_H = 8.0F;
 // Inset in pixels from the box edges for the check-mark lines.
 static const float CHECK_INSET = 3.0F;
 
-static void handle_checkbox_event(ui_element *element, const SDL_Event *event)
+static void set_checked_internal(ui_checkbox *checkbox, bool checked, bool notify)
+{
+    if (checkbox == NULL)
+    {
+        return;
+    }
+
+    const bool changed = checkbox->is_checked != checked;
+    checkbox->is_checked = checked;
+    if (changed && notify && checkbox->on_change != NULL)
+    {
+        checkbox->on_change(checkbox->is_checked, checkbox->on_change_context);
+    }
+}
+
+static bool handle_checkbox_event(ui_element *element, const SDL_Event *event)
 {
     ui_checkbox *checkbox = (ui_checkbox *)element;
 
@@ -26,8 +41,9 @@ static void handle_checkbox_event(ui_element *element, const SDL_Event *event)
         if (SDL_PointInRectFloat(&cursor, &checkbox->base.rect))
         {
             checkbox->is_pressed = true;
+            return true;
         }
-        return;
+        return false;
     }
 
     if (event->type == SDL_EVENT_MOUSE_BUTTON_UP && event->button.button == SDL_BUTTON_LEFT)
@@ -39,13 +55,12 @@ static void handle_checkbox_event(ui_element *element, const SDL_Event *event)
         checkbox->is_pressed = false;
         if (was_pressed && is_inside)
         {
-            checkbox->is_checked = !checkbox->is_checked;
-            if (checkbox->on_change != NULL)
-            {
-                checkbox->on_change(checkbox->is_checked, checkbox->on_change_context);
-            }
+            set_checked_internal(checkbox, !checkbox->is_checked, true);
         }
+        return was_pressed;
     }
+
+    return false;
 }
 
 static void update_checkbox(ui_element *element, float delta_seconds)
@@ -134,4 +149,18 @@ ui_checkbox *ui_checkbox_create(float x, float y, const char *label, SDL_Color b
     checkbox->on_change_context = on_change_context;
 
     return checkbox;
+}
+
+bool ui_checkbox_is_checked(const ui_checkbox *checkbox)
+{
+    if (checkbox == NULL)
+    {
+        return false;
+    }
+    return checkbox->is_checked;
+}
+
+void ui_checkbox_set_checked(ui_checkbox *checkbox, bool checked, bool notify)
+{
+    set_checked_internal(checkbox, checked, notify);
 }

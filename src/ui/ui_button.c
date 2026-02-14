@@ -10,7 +10,7 @@ static const SDL_Color BUTTON_TEXT_COLOR_WHITE = {255, 255, 255, 255};
 // Hit-testing uses SDL3's SDL_PointInRectFloat (from SDL_rect.h) instead of a
 // hand-rolled helper.  SDL handles the inclusive-bounds check for us and stays
 // consistent with any future coordinate-space changes (e.g. logical presentation).
-static void handle_button_event(ui_element *element, const SDL_Event *event)
+static bool handle_button_event(ui_element *element, const SDL_Event *event)
 {
     ui_button *button = (ui_button *)element;
 
@@ -20,8 +20,9 @@ static void handle_button_event(ui_element *element, const SDL_Event *event)
         if (SDL_PointInRectFloat(&cursor, &button->base.rect))
         {
             button->is_pressed = true;
+            return true;
         }
-        return;
+        return false;
     }
 
     if (event->type == SDL_EVENT_MOUSE_BUTTON_UP && event->button.button == SDL_BUTTON_LEFT)
@@ -35,7 +36,10 @@ static void handle_button_event(ui_element *element, const SDL_Event *event)
         {
             button->on_click(button->on_click_context);
         }
+        return was_pressed;
     }
+
+    return false;
 }
 
 static void update_button(ui_element *element, float delta_seconds)
@@ -109,4 +113,31 @@ ui_button *ui_button_create(const SDL_FRect *rect, SDL_Color up_color, SDL_Color
     button->on_click_context = on_click_context;
 
     return button;
+}
+
+bool ui_button_is_pressed(const ui_button *button)
+{
+    if (button == NULL)
+    {
+        return false;
+    }
+    return button->is_pressed;
+}
+
+const char *ui_button_get_label(const ui_button *button)
+{
+    if (button == NULL || button->label == NULL)
+    {
+        return "";
+    }
+    return button->label;
+}
+
+void ui_button_set_label(ui_button *button, const char *label)
+{
+    if (button == NULL)
+    {
+        return;
+    }
+    button->label = label;
 }
