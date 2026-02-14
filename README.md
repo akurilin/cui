@@ -32,9 +32,13 @@ ui_element (base type)
   -> ui_button
   -> ui_checkbox
   -> ui_text
+  -> ui_text_input
   -> ui_image
   -> ui_slider
+  -> ui_segment_group
   -> ui_hrule
+  -> ui_layout_container
+  -> ui_scroll_view
   -> ui_fps_counter
 ```
 
@@ -42,14 +46,16 @@ ui_element (base type)
 
 The UI uses a **top-down width, bottom-up height** convention:
 
-- **Width flows down**: parent elements push widths onto children by writing `child->rect.w`. A scroll view sets the layout container's `x`/`w`, and the container in turn sets each child's `x`/`w`.
+- **Width flows down**: parent elements push widths onto children by writing `child->rect.w`. A `ui_scroll_view` sets the `ui_layout_container`'s `x`/`w`, and the container in turn sets each child's `x`/`w`.
 - **Height flows up**: children own their heights (`rect.h` is set at creation or during update). Parents read `child->rect.h` to position subsequent children and to auto-size their own `rect.h` to fit content.
 
-Layout is **single-pass and imperative** — there are no separate measure/arrange phases. Each frame, the layout container iterates its children, positions them using the current `rect` values, and updates its own height to match the total content. This keeps the implementation small and easy to follow.
+`ui_layout_container` supports both **vertical** and **horizontal** stacking. In vertical mode, children are positioned top-to-bottom and the container stretches each child's width to fill; in horizontal mode, children are positioned left-to-right and the container stretches each child's height. Layout uses fixed 8 px padding and 8 px inter-child spacing.
+
+Layout is **single-pass and imperative** — there are no separate measure/arrange phases. The container runs its layout pass on every `handle_event` and `update` call so that size changes propagate within the same frame. This keeps the implementation small and easy to follow.
 
 Children have **no parent pointers**. A child never references or queries its parent; the parent sets the child's rect directly. This makes ownership clear and avoids circular dependencies.
 
-**The cascade in practice** (sidebar example): scroll view sets the container's `x`/`w` → container sets each child's `x`/`w` → container reads children's `h` to auto-size → scroll view reads the container's `h` to determine scroll bounds.
+**The cascade in practice** (sidebar example): `ui_scroll_view` sets the container's `x`/`w` → `ui_layout_container` sets each child's `x`/`w` → container reads children's `h` to auto-size → scroll view reads the container's `h` to determine scroll bounds.
 
 Key files:
 
@@ -62,6 +68,10 @@ Key files:
 - `include/ui/ui_hrule.h`, `src/ui/ui_hrule.c`: thin horizontal divider line with configurable inset.
 - `include/ui/ui_image.h`, `src/ui/ui_image.c`: image element with fallback texture behavior.
 - `include/ui/ui_slider.h`, `src/ui/ui_slider.c`: horizontal slider with min/max range and value callback.
+- `include/ui/ui_text_input.h`, `src/ui/ui_text_input.c`: single-line text field with focus, keyboard input, and submit callback.
+- `include/ui/ui_segment_group.h`, `src/ui/ui_segment_group.c`: segmented control (radio-button group) with selection callback.
+- `include/ui/ui_layout_container.h`, `src/ui/ui_layout_container.c`: vertical/horizontal stack container with auto-sizing.
+- `include/ui/ui_scroll_view.h`, `src/ui/ui_scroll_view.c`: scrollable viewport wrapper with mouse-wheel input and clip-rect rendering.
 - `include/ui/ui_fps_counter.h`, `src/ui/ui_fps_counter.c`: self-updating FPS label anchored to viewport bottom-right.
 
 ### Frame/Lifecycle Flow

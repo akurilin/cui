@@ -1,4 +1,3 @@
-// Pull in SDL's core API (windowing, rendering, events, timing, etc.).
 #include <SDL3/SDL.h>
 
 #include "ui/ui_button.h"
@@ -6,82 +5,107 @@
 #include "ui/ui_context.h"
 #include "ui/ui_fps_counter.h"
 #include "ui/ui_hrule.h"
-#include "ui/ui_image.h"
 #include "ui/ui_layout_container.h"
 #include "ui/ui_pane.h"
 #include "ui/ui_scroll_view.h"
 #include "ui/ui_segment_group.h"
-#include "ui/ui_slider.h"
 #include "ui/ui_text.h"
 #include "ui/ui_text_input.h"
+#include "util/string_util.h"
 
+#include <ctype.h>
 #include <stdbool.h>
-#include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
 
-// Window dimensions in pixels. Keeping these centralized avoids scattered
-// "magic numbers" and makes it obvious where to change app resolution.
 static const int WINDOW_WIDTH = 1024;
 static const int WINDOW_HEIGHT = 768;
 
-// Colors used by the retro-style UI.
-static const Uint8 COLOR_BG = 24;
-static const Uint8 COLOR_PANE = 52;
-static const Uint8 COLOR_BUTTON_UP = 170;
-static const Uint8 COLOR_BUTTON_DOWN = 90;
-static const Uint8 COLOR_BLACK = 0;
-static const Uint8 COLOR_RED = 255;
-static const Uint8 COLOR_TEXT = 235;
-static const Uint8 COLOR_ALPHA_OPAQUE = 255;
-
-// Demo click callback used by the button element.
-// The framework exposes a generic context pointer for caller-owned data;
-// this sample does not need extra data yet, so the pointer is ignored.
-static void log_button_press(void *context)
-{
-    (void)context;
-    printf("button pressed\n");
-    fflush(stdout);
-}
-
-// Demo change callback used by the checkbox element.
-static void log_checkbox_change(bool checked, void *context)
-{
-    (void)context;
-    printf("checkbox toggled: %s\n", checked ? "checked" : "unchecked");
-    fflush(stdout);
-}
-
-static void log_slider_change(float value, void *context)
-{
-    (void)context;
-    printf("slider value: %.2f\n", value);
-    fflush(stdout);
-}
-
-static void log_text_input_submit(const char *value, void *context)
-{
-    (void)context;
-    printf("text input submit: \"%s\"\n", value);
-    fflush(stdout);
-}
-
-static void log_filter_change(size_t selected_index, const char *selected_label, void *context)
-{
-    (void)context;
-    printf("filter changed: %zu (%s)\n", selected_index, selected_label);
-    fflush(stdout);
-}
-
-// Registers a UI element with the root UI context.
+// Layout grid constants for the 1024x768 window.
+// The UI uses a single-column card layout with consistent outer margins.
 //
-// Why this helper exists:
-// - `ui_context_add` can fail if capacity/allocation constraints are hit.
-// - Elements are already heap-allocated before registration.
-// - On registration failure we must destroy the element immediately to avoid
-//   leaking memory.
-//
-// The helper centralizes that ownership rule so call sites stay concise and
-// do not accidentally forget cleanup.
+//   +--[36px margin]--[952px content]--[36px margin]--+
+//   |  header row    (h=64)                           |
+//   |  input row     (h=64)                           |
+//   |  stats/filter  (h=40)                           |
+//   |  ---- rule ----                                 |
+//   |  task list     (h=304, scrollable)              |
+//   |  ---- rule ----                                 |
+//   |  footer row    (h=48)                           |
+//   +------------------------------------------------ +
+static const float LAYOUT_MARGIN = 36.0F;
+static const float CONTENT_WIDTH = 952.0F;
+static const float HEADER_HEIGHT = 64.0F;
+static const float INPUT_ROW_Y = 140.0F;
+static const float INPUT_ROW_HEIGHT = 64.0F;
+static const float STATS_ROW_Y = 244.0F;
+static const float LIST_TOP_Y = 306.0F;
+static const float TASK_LIST_HEIGHT = 304.0F;
+static const float FOOTER_RULE_Y = 632.0F;
+static const float FOOTER_Y = 650.0F;
+static const float ROW_HEIGHT = 32.0F;
+static const float SCROLL_STEP = 24.0F;
+
+// Column widths within a task row (number | check | title | time | delete).
+static const float COL_NUMBER_W = 56.0F;
+static const float COL_CHECK_W = 32.0F;
+static const float COL_TITLE_W = 620.0F;
+static const float COL_TIME_W = 72.0F;
+static const float COL_DELETE_W = 96.0F;
+static const float COL_DELETE_H = 24.0F;
+
+// Widths for header sub-panels and action buttons.
+static const float HEADER_LEFT_W = 680.0F;
+static const float HEADER_RIGHT_W = 272.0F;
+static const float ICON_CELL_W = 56.0F;
+static const float ADD_BUTTON_W = 116.0F;
+static const float CLEAR_BUTTON_W = 184.0F;
+static const float CLEAR_BUTTON_H = 48.0F;
+static const float FILTER_W = 272.0F;
+static const float FILTER_H = 40.0F;
+
+typedef struct todo_task
+{
+    // Stable identity used for display and future task-level references.
+    uint64_t id;
+    char *title;
+    char due_time[6];
+    bool is_done;
+} todo_task;
+
+typedef struct todo_controller todo_controller;
+
+// Generic callback context for task-row controls (checkboxes and delete buttons).
+// Each visible row binds one of these so the callback knows which task to act on.
+typedef struct task_row_context
+{
+    todo_controller *controller;
+    size_t task_index;
+} task_row_context;
+
+struct todo_controller
+{
+    todo_task *tasks;
+    size_t task_count;
+    size_t task_capacity;
+    // Monotonic ID source so IDs are assigned once at creation time.
+    uint64_t next_task_id;
+    task_row_context *row_contexts;
+    size_t row_context_capacity;
+
+    ui_layout_container *rows_container;
+    ui_text *stats_text;
+    ui_text *remaining_text;
+    ui_text_input *task_input;
+    size_t selected_filter_index;
+
+    SDL_Color color_ink;
+    SDL_Color color_muted;
+    SDL_Color color_button_down;
+};
+
 static bool add_element_or_fail(ui_context *context, ui_element *element)
 {
     if (!ui_context_add(context, element))
@@ -95,12 +119,6 @@ static bool add_element_or_fail(ui_context *context, ui_element *element)
     return true;
 }
 
-// Registers a child with a layout container.
-//
-// Ownership rule:
-// - On success, the container owns the child.
-// - On failure, ownership remains with caller and the child is destroyed here
-//   to avoid leaks at the call site.
 static bool add_child_or_fail(ui_layout_container *container, ui_element *child)
 {
     if (!ui_layout_container_add_child(container, child))
@@ -114,31 +132,544 @@ static bool add_child_or_fail(ui_layout_container *container, ui_element *child)
     return true;
 }
 
-// Program entry point. `void` means this program expects no command-line args.
+static bool update_task_summary(todo_controller *controller)
+{
+    if (controller == NULL || controller->stats_text == NULL || controller->remaining_text == NULL)
+    {
+        return false;
+    }
+
+    size_t done_count = 0U;
+    for (size_t i = 0; i < controller->task_count; ++i)
+    {
+        if (controller->tasks[i].is_done)
+        {
+            done_count++;
+        }
+    }
+
+    const size_t active_count = controller->task_count - done_count;
+    char stats_buffer[64];
+    char remaining_buffer[32];
+
+    SDL_snprintf(stats_buffer, sizeof(stats_buffer), "%zu ACTIVE - %zu DONE", active_count,
+                 done_count);
+    SDL_snprintf(remaining_buffer, sizeof(remaining_buffer), "%zu REMAINING", active_count);
+
+    if (!ui_text_set_content(controller->stats_text, stats_buffer))
+    {
+        return false;
+    }
+    if (!ui_text_set_content(controller->remaining_text, remaining_buffer))
+    {
+        return false;
+    }
+
+    return true;
+}
+
+// Forward-declared because event handlers defined above need to call it, but
+// its body depends on add_task_row which is defined immediately before it.
+static bool rebuild_task_rows(todo_controller *controller);
+
+static bool does_task_match_filter(const todo_controller *controller, const todo_task *task)
+{
+    if (controller == NULL || task == NULL)
+    {
+        return false;
+    }
+
+    // Filter index mapping follows the segment labels order: ALL/ACTIVE/DONE.
+    switch (controller->selected_filter_index)
+    {
+    case 1U:
+        return !task->is_done;
+    case 2U:
+        return task->is_done;
+    case 0U:
+    default:
+        return true;
+    }
+}
+
+static bool ensure_row_context_capacity(todo_controller *controller)
+{
+    if (controller == NULL)
+    {
+        return false;
+    }
+
+    if (controller->task_count == 0U)
+    {
+        free(controller->row_contexts);
+        controller->row_contexts = NULL;
+        controller->row_context_capacity = 0U;
+        return true;
+    }
+
+    if (controller->row_context_capacity >= controller->task_count)
+    {
+        return true;
+    }
+
+    // Match context capacity to task_count so each visible row can bind a
+    // dedicated callback context carrying its current task index.
+    // Note: capacity only grows (or drops to 0 on clear). For this mockup the
+    // peak allocation is small enough that eager shrinking is unnecessary.
+    const size_t new_capacity = controller->task_count;
+    task_row_context *new_contexts =
+        realloc((void *)controller->row_contexts, new_capacity * sizeof(task_row_context));
+    if (new_contexts == NULL)
+    {
+        return false;
+    }
+
+    controller->row_contexts = new_contexts;
+    controller->row_context_capacity = new_capacity;
+    return true;
+}
+
+static bool delete_task_at_index(todo_controller *controller, size_t index)
+{
+    if (controller == NULL || index >= controller->task_count)
+    {
+        return false;
+    }
+
+    free(controller->tasks[index].title);
+    controller->tasks[index].title = NULL;
+
+    // Keep tasks densely packed so row numbering and rebuild mapping stay simple.
+    for (size_t i = index; i + 1U < controller->task_count; ++i)
+    {
+        controller->tasks[i] = controller->tasks[i + 1U];
+    }
+    controller->task_count--;
+
+    return rebuild_task_rows(controller);
+}
+
+static void handle_delete_button_click(void *context)
+{
+    task_row_context *row_ctx = (task_row_context *)context;
+    if (row_ctx == NULL || row_ctx->controller == NULL)
+    {
+        return;
+    }
+
+    if (!delete_task_at_index(row_ctx->controller, row_ctx->task_index))
+    {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to delete task at index %zu",
+                     row_ctx->task_index);
+    }
+}
+
+static void handle_task_checkbox_change(bool checked, void *context)
+{
+    task_row_context *row_ctx = (task_row_context *)context;
+    if (row_ctx == NULL || row_ctx->controller == NULL)
+    {
+        return;
+    }
+
+    todo_controller *controller = row_ctx->controller;
+    if (row_ctx->task_index >= controller->task_count)
+    {
+        return;
+    }
+
+    controller->tasks[row_ctx->task_index].is_done = checked;
+    // Rebuild so filters, row visibility, and summary text stay in sync.
+    if (!rebuild_task_rows(controller))
+    {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to rebuild rows after toggle");
+    }
+}
+
+static bool add_task_row(todo_controller *controller, size_t index)
+{
+    if (controller == NULL || controller->rows_container == NULL || index >= controller->task_count)
+    {
+        return false;
+    }
+
+    const todo_task *task = &controller->tasks[index];
+    char row_number[20];
+    // Render the task's stable ID, not the current row position.
+    SDL_snprintf(row_number, sizeof(row_number), "%llu", (unsigned long long)task->id);
+
+    ui_layout_container *row =
+        ui_layout_container_create(&(SDL_FRect){0.0F, 0.0F, 0.0F, ROW_HEIGHT},
+                                   UI_LAYOUT_AXIS_HORIZONTAL, &controller->color_ink);
+    if (row == NULL)
+    {
+        return false;
+    }
+
+    task_row_context *row_ctx = &controller->row_contexts[index];
+    row_ctx->controller = controller;
+    row_ctx->task_index = index;
+
+    ui_text *number = ui_text_create(0.0F, 0.0F, row_number, controller->color_muted, NULL);
+    if (number == NULL)
+    {
+        row->base.ops->destroy((ui_element *)row);
+        return false;
+    }
+    number->base.rect.w = COL_NUMBER_W;
+    if (!add_child_or_fail(row, (ui_element *)number))
+    {
+        row->base.ops->destroy((ui_element *)row);
+        return false;
+    }
+
+    ui_checkbox *check = ui_checkbox_create(
+        0.0F, 0.0F, "", controller->color_ink, controller->color_ink, controller->color_ink,
+        task->is_done, handle_task_checkbox_change, row_ctx, NULL);
+    if (check == NULL)
+    {
+        row->base.ops->destroy((ui_element *)row);
+        return false;
+    }
+    check->base.rect.w = COL_CHECK_W;
+    if (!add_child_or_fail(row, (ui_element *)check))
+    {
+        row->base.ops->destroy((ui_element *)row);
+        return false;
+    }
+
+    ui_text *task_text = ui_text_create(0.0F, 0.0F, task->title, controller->color_ink, NULL);
+    if (task_text == NULL)
+    {
+        row->base.ops->destroy((ui_element *)row);
+        return false;
+    }
+    task_text->base.rect.w = COL_TITLE_W;
+    if (!add_child_or_fail(row, (ui_element *)task_text))
+    {
+        row->base.ops->destroy((ui_element *)row);
+        return false;
+    }
+
+    ui_text *time_text = ui_text_create(0.0F, 0.0F, task->due_time, controller->color_muted, NULL);
+    if (time_text == NULL)
+    {
+        row->base.ops->destroy((ui_element *)row);
+        return false;
+    }
+    time_text->base.rect.w = COL_TIME_W;
+    if (!add_child_or_fail(row, (ui_element *)time_text))
+    {
+        row->base.ops->destroy((ui_element *)row);
+        return false;
+    }
+
+    ui_button *remove =
+        ui_button_create(&(SDL_FRect){0.0F, 0.0F, COL_DELETE_W, COL_DELETE_H},
+                         controller->color_ink, controller->color_button_down, "DELETE",
+                         &controller->color_ink, handle_delete_button_click, row_ctx);
+    if (remove == NULL)
+    {
+        row->base.ops->destroy((ui_element *)row);
+        return false;
+    }
+    if (!add_child_or_fail(row, (ui_element *)remove))
+    {
+        row->base.ops->destroy((ui_element *)row);
+        return false;
+    }
+
+    if (!add_child_or_fail(controller->rows_container, (ui_element *)row))
+    {
+        return false;
+    }
+
+    return true;
+}
+
+static bool rebuild_task_rows(todo_controller *controller)
+{
+    if (controller == NULL || controller->rows_container == NULL)
+    {
+        return false;
+    }
+    if (!ensure_row_context_capacity(controller))
+    {
+        return false;
+    }
+
+    // Rows are a pure projection of model state; always rebuild after mutation.
+    ui_layout_container_clear_children(controller->rows_container, true);
+
+    for (size_t i = 0; i < controller->task_count; ++i)
+    {
+        if (!does_task_match_filter(controller, &controller->tasks[i]))
+        {
+            continue;
+        }
+
+        if (!add_task_row(controller, i))
+        {
+            return false;
+        }
+    }
+
+    return update_task_summary(controller);
+}
+
+static bool append_task(todo_controller *controller, const char *title, const char *due_time,
+                        bool is_done)
+{
+    if (controller == NULL || title == NULL || due_time == NULL)
+    {
+        return false;
+    }
+
+    if (controller->task_count == controller->task_capacity)
+    {
+        const size_t new_capacity =
+            controller->task_capacity == 0U ? 8U : controller->task_capacity * 2U;
+        todo_task *new_tasks = realloc((void *)controller->tasks, new_capacity * sizeof(todo_task));
+        if (new_tasks == NULL)
+        {
+            return false;
+        }
+        controller->tasks = new_tasks;
+        controller->task_capacity = new_capacity;
+    }
+
+    char *task_title = duplicate_string(title);
+    if (task_title == NULL)
+    {
+        return false;
+    }
+
+    todo_task *task = &controller->tasks[controller->task_count];
+    // Prevent wraparound so IDs remain unique for the app lifetime.
+    if (controller->next_task_id == UINT64_MAX)
+    {
+        free(task_title);
+        return false;
+    }
+
+    task->id = controller->next_task_id;
+    controller->next_task_id++;
+    task->title = task_title;
+    SDL_snprintf(task->due_time, sizeof(task->due_time), "%s", due_time);
+    task->is_done = is_done;
+    controller->task_count++;
+    return true;
+}
+
+static void format_header_datetime(char *buffer, size_t buffer_size)
+{
+    if (buffer == NULL || buffer_size == 0U)
+    {
+        return;
+    }
+
+    const time_t now = time(NULL);
+    struct tm local_tm;
+#if defined(_WIN32)
+    localtime_s(&local_tm, &now);
+#else
+    localtime_r(&now, &local_tm);
+#endif
+
+    if (strftime(buffer, buffer_size, "%a, %b %d, %Y %H:%M:%S", &local_tm) == 0U)
+    {
+        buffer[0] = '\0';
+        return;
+    }
+
+    for (size_t i = 0; buffer[i] != '\0'; ++i)
+    {
+        buffer[i] = (char)toupper((unsigned char)buffer[i]);
+    }
+}
+
+static void fill_current_time(char *buffer, size_t buffer_size)
+{
+    if (buffer == NULL || buffer_size < 6U)
+    {
+        return;
+    }
+
+    const time_t now = time(NULL);
+    struct tm local_tm;
+#if defined(_WIN32)
+    localtime_s(&local_tm, &now);
+#else
+    localtime_r(&now, &local_tm);
+#endif
+
+    if (strftime(buffer, buffer_size, "%H:%M", &local_tm) == 0U)
+    {
+        buffer[0] = '\0';
+    }
+}
+
+static uint32_t next_pseudo_random_u32(void)
+{
+    // Use a tiny local PRNG instead of rand() to satisfy lint policy.
+    static uint64_t state = 0U;
+
+    if (state == 0U)
+    {
+        state = ((uint64_t)time(NULL) << 32U) ^ SDL_GetTicksNS();
+        if (state == 0U)
+        {
+            state = 0x9e3779b97f4a7c15ULL;
+        }
+    }
+
+    state ^= state << 13U;
+    state ^= state >> 7U;
+    state ^= state << 17U;
+    return (uint32_t)(state >> 32U);
+}
+
+static void fill_random_time(char *buffer, size_t buffer_size)
+{
+    if (buffer == NULL || buffer_size < 6U)
+    {
+        return;
+    }
+
+    const int hour = (int)(next_pseudo_random_u32() % 24U);
+    const int minute = (int)(next_pseudo_random_u32() % 60U);
+    SDL_snprintf(buffer, buffer_size, "%02d:%02d", hour, minute);
+}
+
+static bool add_task_from_input(todo_controller *controller)
+{
+    if (controller == NULL || controller->task_input == NULL)
+    {
+        return false;
+    }
+
+    const char *input_value = ui_text_input_get_value(controller->task_input);
+    if (input_value == NULL || input_value[0] == '\0')
+    {
+        return true;
+    }
+
+    char due_time[6] = "00:00";
+    fill_current_time(due_time, sizeof(due_time));
+
+    if (!append_task(controller, input_value, due_time, false))
+    {
+        return false;
+    }
+
+    ui_text_input_clear(controller->task_input);
+    return rebuild_task_rows(controller);
+}
+
+// Remove only completed tasks, keeping active ones in place.
+static void clear_done_tasks(todo_controller *controller)
+{
+    if (controller == NULL)
+    {
+        return;
+    }
+
+    size_t write = 0U;
+    for (size_t read = 0; read < controller->task_count; ++read)
+    {
+        if (controller->tasks[read].is_done)
+        {
+            free(controller->tasks[read].title);
+            controller->tasks[read].title = NULL;
+        }
+        else
+        {
+            if (write != read)
+            {
+                controller->tasks[write] = controller->tasks[read];
+            }
+            write++;
+        }
+    }
+    controller->task_count = write;
+
+    (void)rebuild_task_rows(controller);
+}
+
+static void destroy_task_storage(todo_controller *controller)
+{
+    if (controller == NULL)
+    {
+        return;
+    }
+
+    for (size_t i = 0; i < controller->task_count; ++i)
+    {
+        free(controller->tasks[i].title);
+        controller->tasks[i].title = NULL;
+    }
+
+    free(controller->tasks);
+    controller->tasks = NULL;
+    controller->task_count = 0U;
+    controller->task_capacity = 0U;
+    free(controller->row_contexts);
+    controller->row_contexts = NULL;
+    controller->row_context_capacity = 0U;
+}
+
+static void handle_clear_button_click(void *context)
+{
+    clear_done_tasks((todo_controller *)context);
+}
+
+static void handle_add_button_click(void *context)
+{
+    todo_controller *controller = (todo_controller *)context;
+    if (controller == NULL)
+    {
+        return;
+    }
+
+    if (!add_task_from_input(controller))
+    {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to add task from input");
+    }
+}
+
+static void handle_task_input_submit(const char *value, void *context)
+{
+    (void)value;
+    handle_add_button_click(context);
+}
+
+static void handle_filter_change(size_t selected_index, const char *selected_label, void *context)
+{
+    (void)selected_label;
+
+    todo_controller *controller = (todo_controller *)context;
+    if (controller == NULL)
+    {
+        return;
+    }
+
+    controller->selected_filter_index = selected_index;
+    if (!rebuild_task_rows(controller))
+    {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to rebuild rows after filter change");
+    }
+}
+
 int main(void)
 {
-    // SDL uses explicit subsystem initialization. We initialize only `VIDEO`
-    // because this app currently needs windowing/rendering only.
-    //
-    // SDL3 returns `true` on success here (note: many C APIs use 0/success),
-    // so we negate the call for failure handling.
     if (!SDL_Init(SDL_INIT_VIDEO))
     {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_Init failed: %s", SDL_GetError());
         return 1;
     }
 
-    // Create a native OS window. Doing this before renderer creation matters:
-    // the renderer needs a target window/surface to present into.
-    //
-    // SDL_WINDOW_HIGH_PIXEL_DENSITY requests a full-resolution framebuffer on
-    // HiDPI/Retina displays.  Without this flag the OS upscales a 1x buffer,
-    // producing visibly blurry text and edges.  The logical-to-physical mapping
-    // is handled later by SDL_SetRenderLogicalPresentation so that all layout
-    // code can keep using WINDOW_WIDTH x WINDOW_HEIGHT coordinates.
-    const char *window_title = "SDL Button Demo";
-    const int window_flags = SDL_WINDOW_HIGH_PIXEL_DENSITY;
-    SDL_Window *window = SDL_CreateWindow(window_title, WINDOW_WIDTH, WINDOW_HEIGHT, window_flags);
+    SDL_Window *window = SDL_CreateWindow("SDL Todo Mockup", WINDOW_WIDTH, WINDOW_HEIGHT,
+                                          SDL_WINDOW_HIGH_PIXEL_DENSITY);
     if (window == NULL)
     {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_CreateWindow failed: %s", SDL_GetError());
@@ -146,13 +677,8 @@ int main(void)
         return 1;
     }
 
-    // SDL may place windows according to platform defaults; we explicitly center
-    // for predictable startup behavior across systems.
     SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
 
-    // Create a renderer bound to the window. Passing NULL for the driver name
-    // lets SDL pick the best available backend — Metal on macOS, Direct3D on
-    // Windows, Vulkan/OpenGL on Linux.
     SDL_Renderer *renderer = SDL_CreateRenderer(window, NULL);
     if (renderer == NULL)
     {
@@ -162,30 +688,10 @@ int main(void)
         return 1;
     }
 
-    // Enable vertical sync so the renderer presents at the display's refresh
-    // rate.  Without this the main loop would spin uncapped, wasting CPU/GPU.
     SDL_SetRenderVSync(renderer, 1);
-
-    // With SDL_WINDOW_HIGH_PIXEL_DENSITY the actual framebuffer may be larger
-    // than the requested window size (e.g. 2048x1536 on a 2x Retina display).
-    // Logical presentation maps our WINDOW_WIDTH x WINDOW_HEIGHT coordinate
-    // space onto that larger buffer, so every drawing call and mouse event
-    // continues to use the same logical units while SDL handles the scaling.
-    // LETTERBOX preserves the aspect ratio and adds black bars if needed.
     SDL_SetRenderLogicalPresentation(renderer, WINDOW_WIDTH, WINDOW_HEIGHT,
                                      SDL_LOGICAL_PRESENTATION_LETTERBOX);
 
-    // This demo expects a visible cursor for button interaction.
-    // Failure is non-fatal, so we warn and continue.
-    if (!SDL_ShowCursor())
-    {
-        SDL_LogWarn(SDL_LOG_CATEGORY_APPLICATION, "SDL_ShowCursor failed: %s", SDL_GetError());
-    }
-
-    // `ui_context` is the root owner/dispatcher for UI elements:
-    // - owns lifecycle of registered elements
-    // - forwards input events
-    // - updates and renders each frame
     ui_context context;
     if (!ui_context_init(&context))
     {
@@ -196,68 +702,146 @@ int main(void)
         return 1;
     }
 
-    // Layout: left sidebar pane takes one-third of the window width; main content
-    // area takes the remainder.
-    const float pane_width = (float)WINDOW_WIDTH / 3.0F;
-    const float content_width = (float)WINDOW_WIDTH - pane_width;
+    const SDL_Color color_bg = {241, 241, 238, 255};
+    const SDL_Color color_panel = {245, 245, 242, 255};
+    const SDL_Color color_ink = {36, 36, 36, 255};
+    const SDL_Color color_muted = {158, 158, 158, 255};
+    const SDL_Color color_button_dark = {33, 33, 37, 255};
+    const SDL_Color color_button_down = {86, 86, 94, 255};
+    const SDL_Color color_accent = {211, 92, 52, 255};
 
-    const SDL_FRect pane_rect = {0.0F, 0.0F, pane_width, (float)WINDOW_HEIGHT};
-    const SDL_Color pane_fill_color =
-        (SDL_Color){COLOR_PANE, COLOR_PANE, COLOR_PANE, COLOR_ALPHA_OPAQUE};
-    const SDL_Color border_color_red =
-        (SDL_Color){COLOR_RED, COLOR_BLACK, COLOR_BLACK, COLOR_ALPHA_OPAQUE};
+    const float header_right_x = LAYOUT_MARGIN + HEADER_LEFT_W;
+    const float input_field_x = LAYOUT_MARGIN + ICON_CELL_W;
+    const float input_field_w = CONTENT_WIDTH - ICON_CELL_W - ADD_BUTTON_W;
+    const float add_button_x = LAYOUT_MARGIN + CONTENT_WIDTH - ADD_BUTTON_W;
+    const float filter_x = LAYOUT_MARGIN + CONTENT_WIDTH - FILTER_W;
 
-    // Sidebar background panel.
-    ui_pane *pane = ui_pane_create(&pane_rect, pane_fill_color, &border_color_red);
+    ui_pane *header_left =
+        ui_pane_create(&(SDL_FRect){LAYOUT_MARGIN, LAYOUT_MARGIN, HEADER_LEFT_W, HEADER_HEIGHT},
+                       color_panel, &color_ink);
+    ui_pane *header_right =
+        ui_pane_create(&(SDL_FRect){header_right_x, LAYOUT_MARGIN, HEADER_RIGHT_W, HEADER_HEIGHT},
+                       color_panel, &color_ink);
 
-    // Sidebar stack container: child widgets are auto-positioned vertically.
-    // The container auto-sizes its rect.h to content height, so we pass a
-    // nominal height here — the scroll view viewport controls the visible area.
-    const SDL_FRect sidebar_stack_rect = {16.0F, 32.0F, pane_width - 32.0F, 0.0F};
-    ui_layout_container *sidebar_stack =
-        ui_layout_container_create(&sidebar_stack_rect, UI_LAYOUT_AXIS_VERTICAL, &border_color_red);
+    ui_text *title = ui_text_create(LAYOUT_MARGIN + 22.0F, LAYOUT_MARGIN + 28.0F,
+                                    "TODO TASK MANAGEMENT SYSTEM V0.1", color_ink, NULL);
+    char header_datetime[40];
+    format_header_datetime(header_datetime, sizeof(header_datetime));
+    ui_text *datetime_text = ui_text_create(header_right_x + 24.0F, LAYOUT_MARGIN + 28.0F,
+                                            header_datetime, color_muted, NULL);
 
-    // Sidebar child content.
-    const SDL_Color sidebar_text_color =
-        (SDL_Color){COLOR_TEXT, COLOR_TEXT, COLOR_TEXT, COLOR_ALPHA_OPAQUE};
-    const char *item_1_label = "item 1";
-    const char *item_2_label = "item 2";
-    const char *item_3_label = "item 3";
-    ui_text *item_1 =
-        ui_text_create(0.0F, 0.0F, item_1_label, sidebar_text_color, &border_color_red);
-    ui_text *item_2 =
-        ui_text_create(0.0F, 0.0F, item_2_label, sidebar_text_color, &border_color_red);
-    ui_text *item_3 =
-        ui_text_create(0.0F, 0.0F, item_3_label, sidebar_text_color, &border_color_red);
-    ui_checkbox *checkbox =
-        ui_checkbox_create(0.0F, 0.0F, "toggle me", sidebar_text_color, sidebar_text_color,
-                           sidebar_text_color, false, log_checkbox_change, NULL, &border_color_red);
-    bool sidebar_item_1_in_stack = item_1 != NULL;
-    bool sidebar_item_2_in_stack = item_2 != NULL;
-    bool sidebar_item_3_in_stack = item_3 != NULL;
-    bool checkbox_in_stack = checkbox != NULL;
+    ui_pane *icon_cell =
+        ui_pane_create(&(SDL_FRect){LAYOUT_MARGIN, INPUT_ROW_Y, ICON_CELL_W, INPUT_ROW_HEIGHT},
+                       color_panel, &color_ink);
+    ui_text *icon_arrow =
+        ui_text_create(LAYOUT_MARGIN + 22.0F, INPUT_ROW_Y + 26.0F, ">", color_accent, NULL);
 
-    // Extra sidebar items to demonstrate scroll overflow.
-    static const char *extra_labels[] = {"extra 1", "extra 2", "extra 3", "extra 4",
-                                         "extra 5", "extra 6", "extra 7", "extra 8"};
-#define EXTRA_ITEM_COUNT (sizeof(extra_labels) / sizeof(extra_labels[0]))
-    ui_text *extra_items[EXTRA_ITEM_COUNT] = {NULL};
-    for (size_t i = 0; i < EXTRA_ITEM_COUNT; ++i)
+    ui_text_input *task_input = ui_text_input_create(
+        &(SDL_FRect){input_field_x, INPUT_ROW_Y, input_field_w, INPUT_ROW_HEIGHT}, color_muted,
+        color_panel, color_ink, color_ink, "enter task...", color_muted, window,
+        handle_task_input_submit, NULL);
+    ui_button *add_button = ui_button_create(
+        &(SDL_FRect){add_button_x, INPUT_ROW_Y, ADD_BUTTON_W, INPUT_ROW_HEIGHT}, color_button_dark,
+        color_button_down, "ADD", &color_ink, handle_add_button_click, NULL);
+
+    ui_text *stats_text =
+        ui_text_create(LAYOUT_MARGIN, STATS_ROW_Y, "0 ACTIVE - 0 DONE", color_ink, NULL);
+
+    const char *filter_labels[] = {"ALL", "ACTIVE", "DONE"};
+    ui_segment_group *filter_group = ui_segment_group_create(
+        &(SDL_FRect){filter_x, STATS_ROW_Y, FILTER_W, FILTER_H}, filter_labels, 3U, 0U, color_panel,
+        color_button_dark, color_button_down, color_muted, color_panel, &color_ink,
+        handle_filter_change, NULL);
+    ui_hrule *top_rule = ui_hrule_create(1.0F, color_ink, 0.0F);
+    if (top_rule != NULL)
     {
-        extra_items[i] =
-            ui_text_create(0.0F, 0.0F, extra_labels[i], sidebar_text_color, &border_color_red);
+        top_rule->base.rect = (SDL_FRect){LAYOUT_MARGIN, LIST_TOP_Y - 6.0F, CONTENT_WIDTH, 1.0F};
     }
 
-    if (!add_child_or_fail(sidebar_stack, (ui_element *)item_1) ||
-        !add_child_or_fail(sidebar_stack, (ui_element *)item_2) ||
-        !add_child_or_fail(sidebar_stack, (ui_element *)item_3) ||
-        !add_child_or_fail(sidebar_stack, (ui_element *)checkbox))
+    ui_pane *list_frame =
+        ui_pane_create(&(SDL_FRect){LAYOUT_MARGIN, LIST_TOP_Y, CONTENT_WIDTH, TASK_LIST_HEIGHT},
+                       color_panel, &color_ink);
+
+    ui_layout_container *rows_container = ui_layout_container_create(
+        &(SDL_FRect){LAYOUT_MARGIN, LIST_TOP_Y, CONTENT_WIDTH, TASK_LIST_HEIGHT},
+        UI_LAYOUT_AXIS_VERTICAL, NULL);
+
+    // On success the scroll view takes ownership of rows_container; on failure
+    // rows_container must be destroyed separately (see error path below).
+    ui_scroll_view *rows_scroll_view = NULL;
+    if (rows_container != NULL)
     {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create or register sidebar children");
-        if (sidebar_stack != NULL && sidebar_stack->base.ops != NULL &&
-            sidebar_stack->base.ops->destroy != NULL)
+        rows_scroll_view = ui_scroll_view_create(
+            &(SDL_FRect){LAYOUT_MARGIN, LIST_TOP_Y, CONTENT_WIDTH, TASK_LIST_HEIGHT},
+            (ui_element *)rows_container, SCROLL_STEP, NULL);
+    }
+
+    ui_hrule *bottom_rule = ui_hrule_create(1.0F, color_ink, 0.0F);
+    if (bottom_rule != NULL)
+    {
+        bottom_rule->base.rect = (SDL_FRect){LAYOUT_MARGIN, FOOTER_RULE_Y, CONTENT_WIDTH, 1.0F};
+    }
+
+    ui_text *remaining_text = ui_text_create(LAYOUT_MARGIN + CONTENT_WIDTH - 168.0F,
+                                             FOOTER_Y + 18.0F, "0 REMAINING", color_muted, NULL);
+    ui_fps_counter *fps_counter =
+        ui_fps_counter_create(WINDOW_WIDTH, WINDOW_HEIGHT, 12.0F, color_ink, NULL);
+
+    // controller lives on main()'s stack. Callback contexts store &controller,
+    // which is safe because main()'s scope outlives all UI elements. Do not
+    // move construction into a sub-function without addressing this lifetime.
+    todo_controller controller = {
+        .tasks = NULL,
+        .task_count = 0U,
+        .task_capacity = 0U,
+        .next_task_id = 1U,
+        .row_contexts = NULL,
+        .row_context_capacity = 0U,
+        .rows_container = rows_container,
+        .stats_text = stats_text,
+        .remaining_text = remaining_text,
+        .task_input = task_input,
+        .selected_filter_index = 0U,
+        .color_ink = color_ink,
+        .color_muted = color_muted,
+        .color_button_down = color_button_down,
+    };
+
+    ui_button *clear_done = ui_button_create(
+        &(SDL_FRect){LAYOUT_MARGIN, FOOTER_Y, CLEAR_BUTTON_W, CLEAR_BUTTON_H}, color_button_dark,
+        color_button_down, "CLEAR DONE", &color_ink, handle_clear_button_click, &controller);
+
+    static const char *initial_task_titles[] = {
+        "red", "orange", "yellow", "green", "blue", "indigo", "violet", "cyan", "magenta", "amber",
+    };
+    char initial_due_time[6];
+    bool rows_ok = rows_container != NULL && rows_scroll_view != NULL;
+    fill_random_time(initial_due_time, sizeof(initial_due_time));
+    rows_ok = rows_ok && append_task(&controller, initial_task_titles[0], initial_due_time, false);
+    for (size_t i = 1U; i < SDL_arraysize(initial_task_titles) && rows_ok; ++i)
+    {
+        fill_random_time(initial_due_time, sizeof(initial_due_time));
+        rows_ok = append_task(&controller, initial_task_titles[i], initial_due_time, false);
+    }
+    rows_ok = rows_ok && rebuild_task_rows(&controller);
+
+    if (header_left == NULL || header_right == NULL || title == NULL || datetime_text == NULL ||
+        icon_cell == NULL || icon_arrow == NULL || task_input == NULL || add_button == NULL ||
+        stats_text == NULL || filter_group == NULL || top_rule == NULL || list_frame == NULL ||
+        !rows_ok || bottom_rule == NULL || clear_done == NULL || remaining_text == NULL ||
+        fps_counter == NULL)
+    {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create todo mockup UI elements");
+        destroy_task_storage(&controller);
+        if (rows_scroll_view != NULL && rows_scroll_view->base.ops != NULL &&
+            rows_scroll_view->base.ops->destroy != NULL)
         {
-            sidebar_stack->base.ops->destroy((ui_element *)sidebar_stack);
+            rows_scroll_view->base.ops->destroy((ui_element *)rows_scroll_view);
+        }
+        else if (rows_container != NULL && rows_container->base.ops != NULL &&
+                 rows_container->base.ops->destroy != NULL)
+        {
+            rows_container->base.ops->destroy((ui_element *)rows_container);
         }
         ui_context_destroy(&context);
         SDL_DestroyRenderer(renderer);
@@ -265,125 +849,33 @@ int main(void)
         SDL_Quit();
         return 1;
     }
-    // Horizontal divider between primary sidebar items and extra items.
-    ui_hrule *sidebar_divider = ui_hrule_create(1.0F, sidebar_text_color, 0.05F);
-    if (sidebar_divider != NULL)
+
+    // Callback contexts are wired after construction succeeds so we never
+    // dereference NULL UI pointers while setting them.
+    task_input->on_submit_context = &controller;
+    add_button->on_click_context = &controller;
+    filter_group->on_change_context = &controller;
+
+    if (!add_element_or_fail(&context, (ui_element *)header_left) ||
+        !add_element_or_fail(&context, (ui_element *)header_right) ||
+        !add_element_or_fail(&context, (ui_element *)title) ||
+        !add_element_or_fail(&context, (ui_element *)datetime_text) ||
+        !add_element_or_fail(&context, (ui_element *)icon_cell) ||
+        !add_element_or_fail(&context, (ui_element *)icon_arrow) ||
+        !add_element_or_fail(&context, (ui_element *)task_input) ||
+        !add_element_or_fail(&context, (ui_element *)add_button) ||
+        !add_element_or_fail(&context, (ui_element *)stats_text) ||
+        !add_element_or_fail(&context, (ui_element *)filter_group) ||
+        !add_element_or_fail(&context, (ui_element *)top_rule) ||
+        !add_element_or_fail(&context, (ui_element *)list_frame) ||
+        !add_element_or_fail(&context, (ui_element *)rows_scroll_view) ||
+        !add_element_or_fail(&context, (ui_element *)bottom_rule) ||
+        !add_element_or_fail(&context, (ui_element *)clear_done) ||
+        !add_element_or_fail(&context, (ui_element *)remaining_text) ||
+        !add_element_or_fail(&context, (ui_element *)fps_counter))
     {
-        ui_layout_container_add_child(sidebar_stack, (ui_element *)sidebar_divider);
-    }
-
-    for (size_t i = 0; i < EXTRA_ITEM_COUNT; ++i)
-    {
-        if (extra_items[i] != NULL)
-        {
-            ui_layout_container_add_child(sidebar_stack, (ui_element *)extra_items[i]);
-        }
-    }
-
-    // Wrap the sidebar stack in a scroll view. The scroll view's rect defines
-    // the visible viewport; the stack's auto-sized rect.h determines content
-    // height and scroll range.
-    // Viewport is intentionally shorter than the content to demonstrate scrolling.
-    const float sidebar_scroll_height = 150.0F;
-    const SDL_FRect sidebar_scroll_rect = {16.0F, 32.0F, pane_width - 32.0F, sidebar_scroll_height};
-    const float sidebar_scroll_step = 24.0F;
-    ui_scroll_view *sidebar_scroll = ui_scroll_view_create(
-        &sidebar_scroll_rect, (ui_element *)sidebar_stack, sidebar_scroll_step, &border_color_red);
-
-    // Main button centered within the content area (not the full window).
-    // The X position intentionally offsets by `pane_width` so sidebar and content
-    // remain visually independent.
-    const SDL_FRect button_rect = {
-        pane_width + (content_width - 140.0F) / 2.0F,
-        ((float)WINDOW_HEIGHT - 80.0F) / 2.0F,
-        140.0F,
-        80.0F,
-    };
-    const SDL_Color button_up_color =
-        (SDL_Color){COLOR_BUTTON_UP, COLOR_BUTTON_UP, COLOR_BUTTON_UP, COLOR_ALPHA_OPAQUE};
-    const SDL_Color button_down_color =
-        (SDL_Color){COLOR_BUTTON_DOWN, COLOR_BUTTON_DOWN, COLOR_BUTTON_DOWN, COLOR_ALPHA_OPAQUE};
-    button_click_handler button_click_handler_fn = log_button_press;
-    void *button_click_context = NULL;
-
-    // Todo filter segmented control in the main content area.
-    const char *todo_filter_labels[] = {"ALL", "ACTIVE", "DONE"};
-    const SDL_FRect filter_segment_rect = {pane_width + content_width - 304.0F, 40.0F, 264.0F,
-                                           32.0F};
-    ui_segment_group *filter_segment_group =
-        ui_segment_group_create(&filter_segment_rect, todo_filter_labels, 3U, 0U, button_up_color,
-                                pane_fill_color, button_down_color, pane_fill_color,
-                                sidebar_text_color, &border_color_red, log_filter_change, NULL);
-
-    // Interactive button that triggers `log_button_press` on click.
-    ui_button *button =
-        ui_button_create(&button_rect, button_up_color, button_down_color, "click me",
-                         &border_color_red, button_click_handler_fn, button_click_context);
-
-    // Demo image displayed above the button in the content area.
-    // If assets/icon.png is missing, ui_image uses assets/missing-image.png.
-    const float image_size = 64.0F;
-    const float image_x = pane_width + (content_width - image_size) / 2.0F;
-    const float image_y = button_rect.y - image_size - 24.0F;
-    ui_image *icon = ui_image_create(renderer, image_x, image_y, image_size, image_size,
-                                     "assets/icon.png", &border_color_red);
-
-    const SDL_FRect slider_rect = {
-        pane_width + ((content_width - 240.0F) / 2.0F),
-        button_rect.y + button_rect.h + 32.0F,
-        240.0F,
-        24.0F,
-    };
-    ui_slider *slider =
-        ui_slider_create(&slider_rect, 0.0F, 100.0F, 50.0F, sidebar_text_color, button_up_color,
-                         button_down_color, &border_color_red, log_slider_change, NULL);
-
-    // Demo text input below the slider in the content area.
-    const SDL_FRect text_input_rect = {
-        pane_width + ((content_width - 240.0F) / 2.0F),
-        slider_rect.y + slider_rect.h + 32.0F,
-        240.0F,
-        20.0F,
-    };
-    const SDL_Color text_input_bg =
-        (SDL_Color){COLOR_PANE, COLOR_PANE, COLOR_PANE, COLOR_ALPHA_OPAQUE};
-    const SDL_Color focused_border_color =
-        (SDL_Color){COLOR_TEXT, COLOR_TEXT, COLOR_TEXT, COLOR_ALPHA_OPAQUE};
-    ui_text_input *text_input =
-        ui_text_input_create(&text_input_rect, sidebar_text_color, text_input_bg, border_color_red,
-                             focused_border_color, window, log_text_input_submit, NULL);
-
-    // FPS counter overlays diagnostic text in the window's lower-right area.
-    // Viewport dimensions are supplied so the element can anchor itself
-    // correctly regardless of frame timing.
-    const int fps_viewport_width = WINDOW_WIDTH;
-    const int fps_viewport_height = WINDOW_HEIGHT;
-    const float fps_padding = 12.0F;
-    const SDL_Color fps_text_color =
-        (SDL_Color){COLOR_TEXT, COLOR_TEXT, COLOR_TEXT, COLOR_ALPHA_OPAQUE};
-    ui_fps_counter *fps_counter = ui_fps_counter_create(
-        fps_viewport_width, fps_viewport_height, fps_padding, fps_text_color, &border_color_red);
-    bool fps_counter_in_context = fps_counter != NULL;
-
-    ui_text *debug_text = ui_text_create(pane_width + 24.0F, (float)WINDOW_HEIGHT - 48.0F,
-                                         "F1-F11: debug controls", sidebar_text_color, NULL);
-    int dynamic_text_counter = 0;
-    bool button_label_toggled = false;
-
-    // Register all created elements with the UI context.
-    // If any registration fails, previously-added elements remain owned by
-    // `context` and get cleaned up by `ui_context_destroy`.
-    if (!add_element_or_fail(&context, (ui_element *)pane) ||
-        !add_element_or_fail(&context, (ui_element *)sidebar_scroll) ||
-        !add_element_or_fail(&context, (ui_element *)filter_segment_group) ||
-        !add_element_or_fail(&context, (ui_element *)button) ||
-        !add_element_or_fail(&context, (ui_element *)icon) ||
-        !add_element_or_fail(&context, (ui_element *)slider) ||
-        !add_element_or_fail(&context, (ui_element *)text_input) ||
-        !add_element_or_fail(&context, (ui_element *)fps_counter) ||
-        !add_element_or_fail(&context, (ui_element *)debug_text))
-    {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create or register UI elements");
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to register todo mockup UI elements");
+        destroy_task_storage(&controller);
         ui_context_destroy(&context);
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
@@ -391,38 +883,16 @@ int main(void)
         return 1;
     }
 
-    // High-resolution timer for frame delta time.  SDL_GetTicksNS (SDL 3)
-    // returns nanoseconds since SDL_Init; SDL_NS_PER_SECOND (= 1 000 000 000)
-    // converts the elapsed delta to seconds.  This replaces the older
-    // SDL_GetPerformanceCounter / SDL_GetPerformanceFrequency pattern.
-    Uint64 previous_ns = SDL_GetTicksNS();
-
-    // Main frame loop (a standard real-time app/game loop):
-    // 1) measure elapsed time since previous frame
-    // 2) pump and handle OS/input events
-    // 3) update UI state using delta time
-    // 4) render the current frame
-    // 5) present rendered frame to the screen
     bool running = true;
-    bool last_button_pressed = false;
-    puts("Debug controls:");
-    puts("F1 toggle fps in context, F2 remove item2, F3 add item2, F4 clear sidebar children");
-    puts("F5 restore sidebar children, F6 set dynamic text, F7 set input, F8 clear input");
-    puts("F9 toggle checkbox (notify), F10 toggle button label, F11 print input focus");
-    fflush(stdout);
+    Uint64 previous_ns = SDL_GetTicksNS();
+    time_t last_header_time = 0;
 
     while (running)
     {
-        // Delta time lets update logic remain frame-rate independent.
-        // Faster/slower machines still simulate time consistently.
         const Uint64 current_ns = SDL_GetTicksNS();
         const float delta_seconds = (float)(current_ns - previous_ns) / (float)SDL_NS_PER_SECOND;
         previous_ns = current_ns;
 
-        // Event pump:
-        // - Pulls pending events from SDL's internal queue
-        // - Handles quit requests
-        // - Forwards all other events to UI elements via the context
         SDL_Event event;
         while (SDL_PollEvent(&event))
         {
@@ -431,170 +901,32 @@ int main(void)
                 running = false;
                 continue;
             }
-
-            if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat)
-            {
-                if (event.key.key == SDLK_F1)
-                {
-                    if (fps_counter_in_context)
-                    {
-                        const bool removed =
-                            ui_context_remove(&context, (ui_element *)fps_counter, false);
-                        fps_counter_in_context = !removed;
-                        printf("F1: ui_context_remove(fps_counter) -> %s\n",
-                               removed ? "true" : "false");
-                    }
-                    else
-                    {
-                        const bool added = ui_context_add(&context, (ui_element *)fps_counter);
-                        fps_counter_in_context = added;
-                        printf("F1: ui_context_add(fps_counter) -> %s\n", added ? "true" : "false");
-                    }
-                    fflush(stdout);
-                }
-                else if (event.key.key == SDLK_F2)
-                {
-                    const bool removed = ui_layout_container_remove_child(
-                        sidebar_stack, (ui_element *)item_2, false);
-                    if (removed)
-                    {
-                        sidebar_item_2_in_stack = false;
-                    }
-                    printf("F2: remove item_2 -> %s\n", removed ? "true" : "false");
-                    fflush(stdout);
-                }
-                else if (event.key.key == SDLK_F3)
-                {
-                    bool added = false;
-                    if (!sidebar_item_2_in_stack)
-                    {
-                        added = ui_layout_container_add_child(sidebar_stack, (ui_element *)item_2);
-                        if (added)
-                        {
-                            sidebar_item_2_in_stack = true;
-                        }
-                    }
-                    printf("F3: add item_2 -> %s\n", added ? "true" : "false");
-                    fflush(stdout);
-                }
-                else if (event.key.key == SDLK_F4)
-                {
-                    ui_layout_container_clear_children(sidebar_stack, false);
-                    sidebar_item_1_in_stack = false;
-                    sidebar_item_2_in_stack = false;
-                    sidebar_item_3_in_stack = false;
-                    checkbox_in_stack = false;
-                    puts("F4: cleared sidebar children (destroy=false)");
-                    fflush(stdout);
-                }
-                else if (event.key.key == SDLK_F5)
-                {
-                    bool ok = true;
-                    if (!sidebar_item_1_in_stack)
-                    {
-                        ok = ok &&
-                             ui_layout_container_add_child(sidebar_stack, (ui_element *)item_1);
-                        sidebar_item_1_in_stack = ok;
-                    }
-                    if (!sidebar_item_2_in_stack)
-                    {
-                        const bool added =
-                            ui_layout_container_add_child(sidebar_stack, (ui_element *)item_2);
-                        ok = ok && added;
-                        sidebar_item_2_in_stack = sidebar_item_2_in_stack || added;
-                    }
-                    if (!sidebar_item_3_in_stack)
-                    {
-                        const bool added =
-                            ui_layout_container_add_child(sidebar_stack, (ui_element *)item_3);
-                        ok = ok && added;
-                        sidebar_item_3_in_stack = sidebar_item_3_in_stack || added;
-                    }
-                    if (!checkbox_in_stack)
-                    {
-                        const bool added =
-                            ui_layout_container_add_child(sidebar_stack, (ui_element *)checkbox);
-                        ok = ok && added;
-                        checkbox_in_stack = checkbox_in_stack || added;
-                    }
-                    printf("F5: restore sidebar children -> %s\n", ok ? "true" : "false");
-                    fflush(stdout);
-                }
-                else if (event.key.key == SDLK_F6)
-                {
-                    char label[64];
-                    dynamic_text_counter++;
-                    snprintf(label, sizeof(label), "dynamic text #%d", dynamic_text_counter);
-                    const bool set_ok = ui_text_set_content(item_1, label);
-                    printf("F6: ui_text_set_content -> %s, current=\"%s\"\n",
-                           set_ok ? "true" : "false", ui_text_get_content(item_1));
-                    fflush(stdout);
-                }
-                else if (event.key.key == SDLK_F7)
-                {
-                    const bool set_ok = ui_text_input_set_value(text_input, "prefilled task");
-                    printf("F7: ui_text_input_set_value -> %s, value=\"%s\"\n",
-                           set_ok ? "true" : "false", ui_text_input_get_value(text_input));
-                    fflush(stdout);
-                }
-                else if (event.key.key == SDLK_F8)
-                {
-                    ui_text_input_clear(text_input);
-                    printf("F8: ui_text_input_clear, value=\"%s\"\n",
-                           ui_text_input_get_value(text_input));
-                    fflush(stdout);
-                }
-                else if (event.key.key == SDLK_F9)
-                {
-                    const bool next_checked = !ui_checkbox_is_checked(checkbox);
-                    ui_checkbox_set_checked(checkbox, next_checked, true);
-                    printf("F9: ui_checkbox_set_checked(notify=true), checked=%s\n",
-                           ui_checkbox_is_checked(checkbox) ? "true" : "false");
-                    fflush(stdout);
-                }
-                else if (event.key.key == SDLK_F10)
-                {
-                    button_label_toggled = !button_label_toggled;
-                    ui_button_set_label(button, button_label_toggled ? "press me" : "click me");
-                    printf("F10: ui_button_set_label, label=\"%s\"\n", ui_button_get_label(button));
-                    fflush(stdout);
-                }
-                else if (event.key.key == SDLK_F11)
-                {
-                    printf("F11: ui_text_input_is_focused -> %s\n",
-                           ui_text_input_is_focused(text_input) ? "true" : "false");
-                    fflush(stdout);
-                }
-            }
             ui_context_handle_event(&context, &event);
         }
 
-        const bool button_pressed_now = ui_button_is_pressed(button);
-        if (button_pressed_now != last_button_pressed)
+        // Only reformat the header clock when the wall-clock second changes,
+        // avoiding redundant time/strftime/set_content work on every frame.
+        const time_t now = time(NULL);
+        if (now != last_header_time)
         {
-            printf("button pressed state changed -> %s\n", button_pressed_now ? "true" : "false");
-            fflush(stdout);
-            last_button_pressed = button_pressed_now;
+            last_header_time = now;
+            format_header_datetime(header_datetime, sizeof(header_datetime));
+            if (!ui_text_set_content(datetime_text, header_datetime))
+            {
+                SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to update header datetime text");
+                running = false;
+            }
         }
 
-        // Update pass: lets animated/time-dependent widgets advance state.
         ui_context_update(&context, delta_seconds);
 
-        // Render pass begins by clearing the previous frame.
-        SDL_SetRenderDrawColor(renderer, COLOR_BG, COLOR_BG, COLOR_BG, COLOR_ALPHA_OPAQUE);
+        SDL_SetRenderDrawColor(renderer, color_bg.r, color_bg.g, color_bg.b, color_bg.a);
         SDL_RenderClear(renderer);
-
-        // Draw all UI elements in context-managed order.
         ui_context_render(&context, renderer);
-
-        // Swap back buffer to front buffer so the rendered frame becomes visible.
         SDL_RenderPresent(renderer);
     }
 
-    // Reverse-order teardown:
-    // - UI context first (releases all element resources)
-    // - renderer/window next
-    // - SDL global shutdown last
+    destroy_task_storage(&controller);
     ui_context_destroy(&context);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);

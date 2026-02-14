@@ -5,6 +5,12 @@
 
 /*
  * Lightweight text element rendered with SDL_RenderDebugText.
+ *
+ * Vertical alignment behavior:
+ * - Rendering is top-aligned when rect.h equals the debug glyph height.
+ * - Rendering is vertically centered when rect.h is larger than glyph height.
+ * This allows ui_text to align cleanly inside layout rows that stretch child
+ * heights while preserving legacy behavior for fixed-height labels.
  */
 typedef struct ui_text
 {

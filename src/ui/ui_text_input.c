@@ -1,5 +1,7 @@
 #include "ui/ui_text_input.h"
 
+#include "util/string_util.h"
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -129,6 +131,12 @@ static void render_text_input(const ui_element *element, SDL_Renderer *renderer)
                                input->text_color.b, input->text_color.a);
         SDL_RenderDebugText(renderer, text_x, text_y, input->buffer);
     }
+    else if (!input->is_focused && input->placeholder != NULL && input->placeholder[0] != '\0')
+    {
+        SDL_SetRenderDrawColor(renderer, input->placeholder_color.r, input->placeholder_color.g,
+                               input->placeholder_color.b, input->placeholder_color.a);
+        SDL_RenderDebugText(renderer, text_x, text_y, input->placeholder);
+    }
 
     // Blinking caret when focused (visible during the first half of the blink cycle).
     if (input->is_focused && input->caret_blink_timer < CARET_BLINK_HALF)
@@ -157,6 +165,7 @@ static void destroy_text_input(ui_element *element)
     {
         SDL_StopTextInput(input->window);
     }
+    free(input->placeholder);
     free(element);
 }
 
@@ -170,7 +179,8 @@ static const ui_element_ops TEXT_INPUT_OPS = {
 // NOLINTBEGIN(bugprone-easily-swappable-parameters)
 ui_text_input *ui_text_input_create(const SDL_FRect *rect, SDL_Color text_color,
                                     SDL_Color background_color, SDL_Color border_color,
-                                    SDL_Color focused_border_color, SDL_Window *window,
+                                    SDL_Color focused_border_color, const char *placeholder,
+                                    SDL_Color placeholder_color, SDL_Window *window,
                                     text_input_submit_handler on_submit, void *on_submit_context)
 // NOLINTEND(bugprone-easily-swappable-parameters)
 {
@@ -192,6 +202,7 @@ ui_text_input *ui_text_input_create(const SDL_FRect *rect, SDL_Color text_color,
     ui_element_set_border(&input->base, &border_color, 1.0F);
 
     input->buffer[0] = '\0';
+    input->placeholder = NULL;
     input->length = 0;
 
     // Cap max characters to what fits within the visible area.
@@ -204,6 +215,7 @@ ui_text_input *ui_text_input_create(const SDL_FRect *rect, SDL_Color text_color,
 
     input->is_focused = false;
     input->text_color = text_color;
+    input->placeholder_color = placeholder_color;
     input->background_color = background_color;
     input->focused_border_color = focused_border_color;
     input->unfocused_border_color = border_color;
@@ -211,6 +223,12 @@ ui_text_input *ui_text_input_create(const SDL_FRect *rect, SDL_Color text_color,
     input->window = window;
     input->on_submit = on_submit;
     input->on_submit_context = on_submit_context;
+
+    if (!ui_text_input_set_placeholder(input, placeholder))
+    {
+        free(input);
+        return NULL;
+    }
 
     return input;
 }
@@ -241,6 +259,31 @@ bool ui_text_input_set_value(ui_text_input *input, const char *value)
     input->buffer[value_length] = '\0';
     input->length = value_length;
     input->caret_blink_timer = 0.0F;
+    return true;
+}
+
+bool ui_text_input_set_placeholder(ui_text_input *input, const char *placeholder)
+{
+    if (input == NULL)
+    {
+        return false;
+    }
+
+    if (placeholder == NULL)
+    {
+        free(input->placeholder);
+        input->placeholder = NULL;
+        return true;
+    }
+
+    char *placeholder_copy = duplicate_string(placeholder);
+    if (placeholder_copy == NULL)
+    {
+        return false;
+    }
+
+    free(input->placeholder);
+    input->placeholder = placeholder_copy;
     return true;
 }
 
