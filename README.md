@@ -16,9 +16,10 @@ SDL and SDL_image are brought in as Git submodules at `vendored/SDL` and
 
 ## Architecture Overview
 
-The app is split into a tiny application layer (`main.c`) and a reusable UI layer (`include/ui`, `src/ui`).
+The app is split into a small application shell (`main.c`), a page layer (`include/pages`, `src/pages`), and a reusable UI layer (`include/ui`, `src/ui`).
 
-- `main.c` is composition/root wiring only: create window/renderer, construct UI elements, register them with a `ui_context`, then run the main loop.
+- `main.c` is composition/root wiring only: create window/renderer, initialize `ui_context`, create the active page, and run the main loop.
+- `todo_page` owns todo-specific model state and UI composition for the current screen.
 - `ui_context` is the lifecycle owner + dispatcher for all elements.
 - `ui_element` is the common base interface for polymorphism in C.
 
@@ -65,6 +66,7 @@ Children have **no parent pointers**. A child never references or queries its pa
 
 Key files:
 
+- `include/pages/todo_page.h`, `src/pages/todo_page.c`: todo page public lifecycle API + private page logic (task state, callbacks, and widget composition).
 - `include/ui/ui_element.h`, `src/ui/ui_element.c`: base type, virtual ops contract, and shared border helpers.
 - `include/ui/ui_context.h`, `src/ui/ui_context.c`: dynamic element list, ownership, event/update/render dispatch.
 - `include/ui/ui_pane.h`, `src/ui/ui_pane.c`: rectangle fill + border visual group element.
@@ -85,9 +87,10 @@ Key files:
 Per frame, `main.c` drives the UI system in this order:
 
 1. Poll SDL events and forward each to `ui_context_handle_event`.
-2. Call `ui_context_update(delta_seconds)`.
-3. Clear renderer and call `ui_context_render(renderer)`.
-4. Present frame.
+2. Call `todo_page_update()` for page-level per-frame work (for example, header clock refresh).
+3. Call `ui_context_update(delta_seconds)`.
+4. Clear renderer and call `ui_context_render(renderer)`.
+5. Present frame.
 
 `ui_context` behavior rules:
 
@@ -100,7 +103,8 @@ Per frame, `main.c` drives the UI system in this order:
 
 - Element constructors (`ui_button_create`, `ui_pane_create`, etc.) allocate on the heap and return ownership to caller.
 - After `ui_context_add` succeeds, ownership transfers to `ui_context`.
-- On failed add, caller remains responsible (see `add_element_or_fail` in `main.c`).
+- `todo_page_create` registers page elements in `ui_context`; on any partial failure it rolls back and destroys already-registered page elements before returning `NULL`.
+- `todo_page_destroy` removes and destroys elements that were registered by the page, then frees page-owned task/model storage.
 
 ## Configure and Build:
 ```
