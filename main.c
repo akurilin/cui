@@ -8,6 +8,7 @@
 #include "ui/ui_image.h"
 #include "ui/ui_layout_container.h"
 #include "ui/ui_pane.h"
+#include "ui/ui_scroll_view.h"
 #include "ui/ui_segment_group.h"
 #include "ui/ui_slider.h"
 #include "ui/ui_text.h"
@@ -209,8 +210,9 @@ int main(void)
     ui_pane *pane = ui_pane_create(&pane_rect, pane_fill_color, &border_color_red);
 
     // Sidebar stack container: child widgets are auto-positioned vertically.
-    const SDL_FRect sidebar_stack_rect = {16.0F, 32.0F, pane_width - 32.0F,
-                                          (float)WINDOW_HEIGHT - 64.0F};
+    // The container auto-sizes its rect.h to content height, so we pass a
+    // nominal height here — the scroll view viewport controls the visible area.
+    const SDL_FRect sidebar_stack_rect = {16.0F, 32.0F, pane_width - 32.0F, 0.0F};
     ui_layout_container *sidebar_stack =
         ui_layout_container_create(&sidebar_stack_rect, UI_LAYOUT_AXIS_VERTICAL, &border_color_red);
 
@@ -234,6 +236,17 @@ int main(void)
     bool sidebar_item_3_in_stack = item_3 != NULL;
     bool checkbox_in_stack = checkbox != NULL;
 
+    // Extra sidebar items to demonstrate scroll overflow.
+    static const char *extra_labels[] = {"extra 1", "extra 2", "extra 3", "extra 4",
+                                         "extra 5", "extra 6", "extra 7", "extra 8"};
+#define EXTRA_ITEM_COUNT (sizeof(extra_labels) / sizeof(extra_labels[0]))
+    ui_text *extra_items[EXTRA_ITEM_COUNT] = {NULL};
+    for (size_t i = 0; i < EXTRA_ITEM_COUNT; ++i)
+    {
+        extra_items[i] =
+            ui_text_create(0.0F, 0.0F, extra_labels[i], sidebar_text_color, &border_color_red);
+    }
+
     if (!add_child_or_fail(sidebar_stack, (ui_element *)item_1) ||
         !add_child_or_fail(sidebar_stack, (ui_element *)item_2) ||
         !add_child_or_fail(sidebar_stack, (ui_element *)item_3) ||
@@ -251,6 +264,23 @@ int main(void)
         SDL_Quit();
         return 1;
     }
+    for (size_t i = 0; i < EXTRA_ITEM_COUNT; ++i)
+    {
+        if (extra_items[i] != NULL)
+        {
+            ui_layout_container_add_child(sidebar_stack, (ui_element *)extra_items[i]);
+        }
+    }
+
+    // Wrap the sidebar stack in a scroll view. The scroll view's rect defines
+    // the visible viewport; the stack's auto-sized rect.h determines content
+    // height and scroll range.
+    // Viewport is intentionally shorter than the content to demonstrate scrolling.
+    const float sidebar_scroll_height = 150.0F;
+    const SDL_FRect sidebar_scroll_rect = {16.0F, 32.0F, pane_width - 32.0F, sidebar_scroll_height};
+    const float sidebar_scroll_step = 24.0F;
+    ui_scroll_view *sidebar_scroll = ui_scroll_view_create(
+        &sidebar_scroll_rect, (ui_element *)sidebar_stack, sidebar_scroll_step, &border_color_red);
 
     // Main button centered within the content area (not the full window).
     // The X position intentionally offsets by `pane_width` so sidebar and content
@@ -336,7 +366,7 @@ int main(void)
     // If any registration fails, previously-added elements remain owned by
     // `context` and get cleaned up by `ui_context_destroy`.
     if (!add_element_or_fail(&context, (ui_element *)pane) ||
-        !add_element_or_fail(&context, (ui_element *)sidebar_stack) ||
+        !add_element_or_fail(&context, (ui_element *)sidebar_scroll) ||
         !add_element_or_fail(&context, (ui_element *)filter_segment_group) ||
         !add_element_or_fail(&context, (ui_element *)button) ||
         !add_element_or_fail(&context, (ui_element *)icon) ||

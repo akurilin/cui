@@ -30,6 +30,7 @@ add_executable(
     src/ui/ui_pane.c
     src/ui/ui_image.c
     src/ui/ui_layout_container.c
+    src/ui/ui_scroll_view.c
     src/ui/ui_segment_group.c
     src/ui/ui_slider.c
     src/ui/ui_text.c
