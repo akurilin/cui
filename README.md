@@ -37,6 +37,19 @@ ui_element (base type)
   -> ui_fps_counter
 ```
 
+### Layout & Sizing Model
+
+The UI uses a **top-down width, bottom-up height** convention:
+
+- **Width flows down**: parent elements push widths onto children by writing `child->rect.w`. A scroll view sets the layout container's `x`/`w`, and the container in turn sets each child's `x`/`w`.
+- **Height flows up**: children own their heights (`rect.h` is set at creation or during update). Parents read `child->rect.h` to position subsequent children and to auto-size their own `rect.h` to fit content.
+
+Layout is **single-pass and imperative** — there are no separate measure/arrange phases. Each frame, the layout container iterates its children, positions them using the current `rect` values, and updates its own height to match the total content. This keeps the implementation small and easy to follow.
+
+Children have **no parent pointers**. A child never references or queries its parent; the parent sets the child's rect directly. This makes ownership clear and avoids circular dependencies.
+
+**The cascade in practice** (sidebar example): scroll view sets the container's `x`/`w` → container sets each child's `x`/`w` → container reads children's `h` to auto-size → scroll view reads the container's `h` to determine scroll bounds.
+
 Key files:
 
 - `include/ui/ui_element.h`, `src/ui/ui_element.c`: base type, virtual ops contract, and shared border helpers.
