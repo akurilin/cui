@@ -36,17 +36,16 @@ static void set_focus(ui_text_input *input, bool focused)
     }
 }
 
+static bool can_focus_text_input(const ui_element *element) { return element != NULL; }
+
+static void set_text_input_focus(ui_element *element, bool focused)
+{
+    set_focus((ui_text_input *)element, focused);
+}
+
 static bool handle_text_input_event(ui_element *element, const SDL_Event *event)
 {
     ui_text_input *input = (ui_text_input *)element;
-
-    if (event->type == SDL_EVENT_MOUSE_BUTTON_DOWN && event->button.button == SDL_BUTTON_LEFT)
-    {
-        const SDL_FPoint cursor = {event->button.x, event->button.y};
-        const bool inside = SDL_PointInRectFloat(&cursor, &input->base.rect);
-        set_focus(input, inside);
-        return inside;
-    }
 
     if (!input->is_focused)
     {
@@ -171,6 +170,8 @@ static void destroy_text_input(ui_element *element)
 
 static const ui_element_ops TEXT_INPUT_OPS = {
     .handle_event = handle_text_input_event,
+    .can_focus = can_focus_text_input,
+    .set_focus = set_text_input_focus,
     .update = update_text_input,
     .render = render_text_input,
     .destroy = destroy_text_input,

@@ -32,6 +32,24 @@ typedef struct ui_element_ops
     bool (*handle_event)(ui_element *element, const SDL_Event *event);
 
     /*
+     * Test whether a point is inside this element's interactive region.
+     * When NULL, ui_context falls back to ui_element_hit_test (rect bounds).
+     */
+    bool (*hit_test)(const ui_element *element, const SDL_FPoint *point);
+
+    /*
+     * Return true when this element can receive keyboard focus.
+     * When NULL, the element is treated as not focusable.
+     */
+    bool (*can_focus)(const ui_element *element);
+
+    /*
+     * Notify the element that focus changed.
+     * Called by ui_context only for focusable elements.
+     */
+    void (*set_focus)(ui_element *element, bool focused);
+
+    /*
      * Advance element state by delta_seconds.
      * Called once per frame when enabled.
      */
@@ -92,5 +110,13 @@ void ui_element_clear_border(ui_element *element);
  */
 void ui_element_render_inner_border(SDL_Renderer *renderer, const SDL_FRect *rect, SDL_Color color,
                                     float width);
+
+/*
+ * Default point-in-rect hit test used by ui_context for pointer routing.
+ *
+ * Returns false when element/point is NULL or when the point is outside the
+ * element bounds.
+ */
+bool ui_element_hit_test(const ui_element *element, const SDL_FPoint *point);
 
 #endif

@@ -16,6 +16,8 @@ typedef struct ui_context
     ui_element **elements;
     size_t element_count;
     size_t element_capacity;
+    ui_element *focused_element;
+    ui_element *captured_element;
 } ui_context;
 
 /*
@@ -58,10 +60,14 @@ bool ui_context_add(ui_context *context, ui_element *element);
 bool ui_context_remove(ui_context *context, ui_element *element, bool destroy_element);
 
 /*
- * Dispatch a single SDL event to enabled elements from front to back
- * (reverse insertion order).
+ * Dispatch a single SDL event using centralized input routing.
  *
- * Dispatch stops at the first element whose handle_event returns true.
+ * Routing rules:
+ * - Text and keyboard events are sent only to the focused element.
+ * - Mouse button/motion/wheel events are hit-tested front-to-back using each
+ *   element's hit_test op (or rect fallback).
+ * - Left mouse press captures the handling element until left release.
+ * - Clicking a focusable element focuses it; clicking elsewhere clears focus.
  */
 void ui_context_handle_event(ui_context *context, const SDL_Event *event);
 

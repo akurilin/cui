@@ -65,3 +65,13 @@ void ui_element_render_inner_border(SDL_Renderer *renderer, const SDL_FRect *rec
         SDL_RenderFillRect(renderer, &right);
     }
 }
+
+bool ui_element_hit_test(const ui_element *element, const SDL_FPoint *point)
+{
+    if (element == NULL || point == NULL)
+    {
+        return false;
+    }
+
+    return SDL_PointInRectFloat(point, &element->rect);
+}

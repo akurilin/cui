@@ -22,9 +22,10 @@ typedef void (*text_input_submit_handler)(const char *value, void *context);
 /*
  * Single-line text input field with click-to-focus keyboard input.
  *
- * Focus model: element-local. Clicking inside the element focuses it and
- * enables SDL text input. Clicking anywhere outside unfocuses. When focused,
- * a blinking caret is drawn at the end of the text.
+ * Focus model: ui_context-managed. Clicking a focusable text input focuses it,
+ * and clicking elsewhere clears focus. ui_context notifies this element when
+ * focus changes so SDL text input start/stop stays centralized and consistent.
+ * When focused, a blinking caret is drawn at the end of the text.
  *
  * Editing: append-only. Characters are inserted at the end of the buffer.
  * Backspace deletes the last character. No cursor movement or selection.
