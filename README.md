@@ -28,7 +28,8 @@ The app is split into a small application shell (`main.c`), a page layer (`inclu
 There is no language-level inheritance in C, so this project uses struct embedding + a virtual function table:
 
 - Every concrete widget embeds `ui_element base;` as its first field.
-- Every concrete widget installs a `ui_element_ops` table (`handle_event`, `update`, `render`, `destroy`).
+- Every concrete widget installs a `ui_element_ops` table (`handle_event`, optional `hit_test`,
+  optional `can_focus`, optional `set_focus`, `update`, `render`, `destroy`).
 - `ui_context` stores all widgets as `ui_element *` and calls the ops table, which gives runtime polymorphism similar to a base-class interface.
 
 Inheritance chain in this project:
@@ -76,7 +77,7 @@ Key files:
 - `include/ui/ui_hrule.h`, `src/ui/ui_hrule.c`: thin horizontal divider line with configurable inset.
 - `include/ui/ui_image.h`, `src/ui/ui_image.c`: image element with fallback texture behavior.
 - `include/ui/ui_slider.h`, `src/ui/ui_slider.c`: horizontal slider with min/max range and value callback.
-- `include/ui/ui_text_input.h`, `src/ui/ui_text_input.c`: single-line text field with focus, keyboard input, and submit callback.
+- `include/ui/ui_text_input.h`, `src/ui/ui_text_input.c`: single-line text field with ui_context-managed focus, keyboard input, and submit callback.
 - `include/ui/ui_segment_group.h`, `src/ui/ui_segment_group.c`: segmented control (radio-button group) with selection callback.
 - `include/ui/ui_layout_container.h`, `src/ui/ui_layout_container.c`: vertical/horizontal stack container with auto-sizing.
 - `include/ui/ui_scroll_view.h`, `src/ui/ui_scroll_view.c`: scrollable viewport wrapper with mouse-wheel input and clip-rect rendering.
@@ -95,6 +96,9 @@ Per frame, `main.c` drives the UI system in this order:
 `ui_context` behavior rules:
 
 - Dispatch `handle_event` only for `enabled` elements.
+- Route text and keyboard events only to the currently focused element.
+- Route pointer events by front-to-back hit testing and stop at first handler.
+- Capture pointer interaction on left press and release capture on left release.
 - Dispatch `update` only for `enabled` elements.
 - Dispatch `render` only for `visible` elements.
 - Destroy all registered elements via each element's `destroy` op during `ui_context_destroy`.
@@ -105,6 +109,16 @@ Per frame, `main.c` drives the UI system in this order:
 - After `ui_context_add` succeeds, ownership transfers to `ui_context`.
 - `todo_page_create` registers page elements in `ui_context`; on any partial failure it rolls back and destroys already-registered page elements before returning `NULL`.
 - `todo_page_destroy` removes and destroys elements that were registered by the page, then frees page-owned task/model storage.
+
+## Roadmap
+
+Key capabilities the UI kit is currently missing, roughly ordered by impact:
+
+1. **Real text rendering** — All widgets use `SDL_RenderDebugText` (fixed 8x8 monospace glyphs). Proper font loading (TTF/OTF via SDL_ttf or stb_truetype) would unlock variable font sizes, weights, styles, and accurate text measurement for layout.
+2. **Keyboard navigation and focus traversal** — Focus/capture routing is centralized in `ui_context`, but tab ordering, arrow-key traversal, and explicit focus ring rendering are still missing.
+3. **Styling and theming** — Colors, padding, and spacing are hardcoded per-widget at construction time. A shared theme or style struct that widgets inherit from would allow reskinning the entire UI from one place.
+4. **Tree-aware propagation and overlay layers** — Event routing is now hit-tested with focus/capture, but dispatch remains top-level list based. Adding explicit parent/child target paths, bubble/capture phases, and overlay layers would enable robust modals, dropdowns, tooltips, and context menus.
+5. **Richer layout primitives** — Layout is currently limited to vertical/horizontal stacking with fixed 8 px padding/spacing. Proportional/weighted sizing, min/max constraints, grid layout, alignment control, and configurable spacing would handle more complex layouts.
 
 ## Configure and Build:
 ```
