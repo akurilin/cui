@@ -89,7 +89,8 @@ static const float STATS_ROW_Y = 244.0F;
 static const float LIST_TOP_Y = 306.0F;
 static const float ROW_HEIGHT = 32.0F;
 static const float SCROLL_STEP = 24.0F;
-static const float FOOTER_RESERVE = 80.0F;
+// Matches legacy footer geometry at 1024x768 (list height 304, footer y 650).
+static const float FOOTER_RESERVE = 158.0F;
 static const float FOOTER_GAP = 22.0F;
 
 static const float COL_NUMBER_W = 56.0F;
