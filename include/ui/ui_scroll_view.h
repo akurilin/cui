@@ -13,8 +13,8 @@
  * Coordinate model:
  * - The scroll view positions the child so that child.rect.y is offset
  *   upward by scroll_offset_y relative to the viewport top.
- * - Child elements are positioned in screen coordinates, so hit-testing
- *   works naturally without coordinate translation.
+ * - Child coordinates are relative to the scroll view (child.parent points to
+ *   the scroll view base element).
  * - Rendering is clipped to the viewport rect.
  *
  * Mouse events are only forwarded to the child when the cursor is inside
@@ -35,7 +35,8 @@ typedef struct ui_scroll_view
  * Parameters:
  * - rect: viewport bounds in window coordinates. This is the visible area.
  * - child: the element to scroll. Its rect.h is read as the content height.
- *   Ownership transfers to the scroll view on success.
+ *   Ownership transfers to the scroll view on success. child must be unparented
+ *   (child->parent == NULL) because reparenting is not supported.
  * - scroll_step: pixels scrolled per mouse wheel tick.
  * - border_color: optional border around the viewport (NULL disables).
  *

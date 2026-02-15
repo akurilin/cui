@@ -11,6 +11,24 @@ static bool is_valid_element(const ui_element *element)
     return element != NULL && element->ops != NULL;
 }
 
+static bool would_create_parent_cycle(const ui_element *child, const ui_element *new_parent)
+{
+    if (child == NULL || new_parent == NULL)
+    {
+        return false;
+    }
+
+    for (const ui_element *cursor = new_parent; cursor != NULL; cursor = cursor->parent)
+    {
+        if (cursor == child)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 static float clamp_non_negative(float value)
 {
     if (value < 0.0F)
@@ -198,6 +216,16 @@ ui_layout_container *ui_layout_container_create(const SDL_FRect *rect, ui_layout
 bool ui_layout_container_add_child(ui_layout_container *container, ui_element *child)
 {
     if (container == NULL || !is_valid_element(child))
+    {
+        return false;
+    }
+
+    if (child->parent != NULL)
+    {
+        return false;
+    }
+
+    if (would_create_parent_cycle(child, &container->base))
     {
         return false;
     }

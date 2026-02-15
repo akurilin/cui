@@ -1,4 +1,4 @@
-.PHONY: configure build run clean check-tools format format-check lint analyze precommit install-hooks
+.PHONY: configure build test run clean check-tools format format-check lint analyze precommit install-hooks
 
 C_SOURCES := $(shell find . -type f -name '*.c' -not -path './build/*' -not -path './vendored/*')
 C_HEADERS := $(shell find . -type f -name '*.h' -not -path './build/*' -not -path './vendored/*')
@@ -32,6 +32,9 @@ configure:
 
 build: configure
 	cmake --build build
+
+test: build
+	ctest --test-dir build --output-on-failure
 
 run: build
 	@if [ -x ./build/Debug/cui ]; then \

@@ -199,6 +199,11 @@ ui_scroll_view *ui_scroll_view_create(const SDL_FRect *rect, ui_element *child, 
         return NULL;
     }
 
+    if (child->parent != NULL)
+    {
+        return NULL;
+    }
+
     ui_scroll_view *scroll = malloc(sizeof(*scroll));
     if (scroll == NULL)
     {

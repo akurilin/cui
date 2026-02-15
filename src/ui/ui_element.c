@@ -1,5 +1,7 @@
 #include "ui/ui_element.h"
 
+#include <stddef.h>
+
 void ui_element_set_border(ui_element *element, const SDL_Color *border_color, float width)
 {
     if (element == NULL)
@@ -66,11 +68,17 @@ void ui_element_render_inner_border(SDL_Renderer *renderer, const SDL_FRect *rec
     }
 }
 
-SDL_FRect ui_element_screen_rect(const ui_element *element)
+static SDL_FRect compute_screen_rect(const ui_element *element, size_t depth)
 {
     if (element == NULL)
     {
         return (SDL_FRect){0.0F, 0.0F, 0.0F, 0.0F};
+    }
+
+    static const size_t MAX_PARENT_CHAIN_DEPTH = 256U;
+    if (depth > MAX_PARENT_CHAIN_DEPTH)
+    {
+        return (SDL_FRect){0.0F, 0.0F, element->rect.w, element->rect.h};
     }
 
     if (element->parent == NULL)
@@ -78,7 +86,7 @@ SDL_FRect ui_element_screen_rect(const ui_element *element)
         return element->rect;
     }
 
-    const SDL_FRect parent_sr = ui_element_screen_rect(element->parent);
+    const SDL_FRect parent_sr = compute_screen_rect(element->parent, depth + 1U);
     float abs_x;
     float abs_y;
 
@@ -109,6 +117,11 @@ SDL_FRect ui_element_screen_rect(const ui_element *element)
     }
 
     return (SDL_FRect){abs_x, abs_y, element->rect.w, element->rect.h};
+}
+
+SDL_FRect ui_element_screen_rect(const ui_element *element)
+{
+    return compute_screen_rect(element, 0U);
 }
 
 bool ui_element_hit_test(const ui_element *element, const SDL_FPoint *point)
