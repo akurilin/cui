@@ -36,6 +36,7 @@ Inheritance chain in this project:
 
 ```text
 ui_element (base type)
+  -> ui_window
   -> ui_pane
   -> ui_button
   -> ui_checkbox
@@ -61,7 +62,7 @@ The UI uses a **top-down width, bottom-up height** convention:
 
 Layout is **single-pass and imperative** — there are no separate measure/arrange phases. The container runs its layout pass on every `handle_event` and `update` call so that size changes propagate within the same frame. This keeps the implementation small and easy to follow.
 
-Children have **no parent pointers**. A child never references or queries its parent; the parent sets the child's rect directly. This makes ownership clear and avoids circular dependencies.
+Children track a **parent pointer and alignment anchors** for relative positioning. `ui_element_screen_rect()` resolves each element's window-space rectangle by walking the parent chain and applying horizontal/vertical anchor modes. This enables reliable anchoring (for example, bottom-right HUD elements) while preserving explicit ownership through container/context registration.
 
 **The cascade in practice** (sidebar example): `ui_scroll_view` sets the container's `x`/`w` → `ui_layout_container` sets each child's `x`/`w` → container reads children's `h` to auto-size → scroll view reads the container's `h` to determine scroll bounds.
 
@@ -82,6 +83,7 @@ Key files:
 - `include/ui/ui_layout_container.h`, `src/ui/ui_layout_container.c`: vertical/horizontal stack container with auto-sizing.
 - `include/ui/ui_scroll_view.h`, `src/ui/ui_scroll_view.c`: scrollable viewport wrapper with mouse-wheel input and clip-rect rendering.
 - `include/ui/ui_fps_counter.h`, `src/ui/ui_fps_counter.c`: self-updating FPS label anchored to viewport bottom-right.
+- `include/ui/ui_window.h`, `src/ui/ui_window.c`: non-rendering root parent element used for window-relative anchoring.
 
 ### Frame/Lifecycle Flow
 
@@ -129,6 +131,7 @@ cmake --build build
 ## Makefile shortcuts:
 ```
 make build    # configure + build
+make test     # build + run CTest suite
 make run      # build + run build/Debug/cui, build/Release/cui, or build/cui
 make clean    # remove build directory
 make format   # apply clang-format to non-vendored .c/.h files
