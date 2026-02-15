@@ -47,11 +47,30 @@ struct todo_page
     task_row_context *row_contexts;
     size_t row_context_capacity;
 
+    // Current viewport dimensions for responsive layout.
+    int viewport_width;
+    int viewport_height;
+
+    // Element references for relayout on resize.
+    ui_pane *header_left;
+    ui_pane *header_right;
+    ui_pane *icon_cell;
+    ui_text *title_text;
+    ui_text *icon_arrow;
+    ui_button *add_button;
+    ui_segment_group *filter_group;
+    ui_hrule *top_rule;
+    ui_hrule *bottom_rule;
+    ui_pane *list_frame;
+    ui_scroll_view *scroll_view;
     ui_layout_container *rows_container;
+    ui_button *clear_done;
+    ui_fps_counter *fps_counter;
     ui_text *stats_text;
     ui_text *remaining_text;
     ui_text_input *task_input;
     ui_text *datetime_text;
+
     size_t selected_filter_index;
     time_t last_header_time;
 
@@ -61,17 +80,15 @@ struct todo_page
 };
 
 static const float LAYOUT_MARGIN = 36.0F;
-static const float CONTENT_WIDTH = 952.0F;
 static const float HEADER_HEIGHT = 64.0F;
 static const float INPUT_ROW_Y = 140.0F;
 static const float INPUT_ROW_HEIGHT = 64.0F;
 static const float STATS_ROW_Y = 244.0F;
 static const float LIST_TOP_Y = 306.0F;
-static const float TASK_LIST_HEIGHT = 304.0F;
-static const float FOOTER_RULE_Y = 632.0F;
-static const float FOOTER_Y = 650.0F;
 static const float ROW_HEIGHT = 32.0F;
 static const float SCROLL_STEP = 24.0F;
+static const float FOOTER_RESERVE = 80.0F;
+static const float FOOTER_GAP = 22.0F;
 
 static const float COL_NUMBER_W = 56.0F;
 static const float COL_CHECK_W = 32.0F;
@@ -80,10 +97,10 @@ static const float COL_TIME_W = 72.0F;
 static const float COL_DELETE_W = 96.0F;
 static const float COL_DELETE_H = 24.0F;
 
-static const float HEADER_LEFT_W = 680.0F;
 static const float HEADER_RIGHT_W = 272.0F;
 static const float ICON_CELL_W = 56.0F;
 static const float ADD_BUTTON_W = 116.0F;
+static const float INPUT_FIELD_W = 780.0F;
 static const float CLEAR_BUTTON_W = 184.0F;
 static const float CLEAR_BUTTON_H = 48.0F;
 static const float FILTER_W = 272.0F;
@@ -185,6 +202,11 @@ static bool update_task_summary(todo_page *page)
 }
 
 static bool rebuild_task_rows(todo_page *page);
+
+static float compute_content_width(const todo_page *page)
+{
+    return (float)page->viewport_width - 2.0F * LAYOUT_MARGIN;
+}
 
 static bool does_task_match_filter(const todo_page *page, const todo_task *task)
 {
@@ -659,6 +681,65 @@ static void handle_filter_change(size_t selected_index, const char *selected_lab
     }
 }
 
+static void relayout_page(todo_page *page)
+{
+    const float content_width = compute_content_width(page);
+    const float header_left_w = content_width - HEADER_RIGHT_W;
+    const float header_right_x = LAYOUT_MARGIN + header_left_w;
+    const float add_button_x = LAYOUT_MARGIN + content_width - ADD_BUTTON_W;
+    const float filter_x = LAYOUT_MARGIN + content_width - FILTER_W;
+
+    const float task_list_height = (float)page->viewport_height - LIST_TOP_Y - FOOTER_RESERVE;
+    const float footer_rule_y = LIST_TOP_Y + task_list_height + FOOTER_GAP / 2.0F;
+    const float footer_y = footer_rule_y + FOOTER_GAP;
+
+    // Header: left pane stretches, right pane shifts rightward (fixed width).
+    page->header_left->base.rect.w = header_left_w;
+    page->header_right->base.rect.x = header_right_x;
+    page->datetime_text->base.rect.x = header_right_x + 24.0F;
+
+    // Input row: input stays fixed width, add button anchors to right edge.
+    page->add_button->base.rect.x = add_button_x;
+
+    // Filter group anchors to right edge.
+    page->filter_group->base.rect.x = filter_x;
+
+    // Horizontal rules stretch with content width.
+    page->top_rule->base.rect.w = content_width;
+    page->bottom_rule->base.rect.w = content_width;
+    page->bottom_rule->base.rect.y = footer_rule_y;
+
+    // Task list containers stretch; leaf elements inside stay fixed.
+    page->list_frame->base.rect.w = content_width;
+    page->list_frame->base.rect.h = task_list_height;
+    page->scroll_view->base.rect.w = content_width;
+    page->scroll_view->base.rect.h = task_list_height;
+    page->rows_container->base.rect.w = content_width;
+
+    // Footer: buttons stay fixed, remaining text anchors right, both track Y.
+    page->clear_done->base.rect.y = footer_y;
+    page->remaining_text->base.rect.x = LAYOUT_MARGIN + content_width - 168.0F;
+    page->remaining_text->base.rect.y = footer_y + 18.0F;
+
+    // FPS counter anchoring.
+    page->fps_counter->viewport_width = page->viewport_width;
+    page->fps_counter->viewport_height = page->viewport_height;
+}
+
+// NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
+bool todo_page_resize(todo_page *page, int viewport_width, int viewport_height)
+{
+    if (page == NULL)
+    {
+        return false;
+    }
+
+    page->viewport_width = viewport_width;
+    page->viewport_height = viewport_height;
+    relayout_page(page);
+    return true;
+}
+
 todo_page *todo_page_create(SDL_Window *window, ui_context *context, int viewport_width,
                             int viewport_height)
 {
@@ -674,6 +755,8 @@ todo_page *todo_page_create(SDL_Window *window, ui_context *context, int viewpor
     }
 
     page->context = context;
+    page->viewport_width = viewport_width;
+    page->viewport_height = viewport_height;
     page->next_task_id = 1U;
     page->selected_filter_index = 0U;
     page->last_header_time = 0;
@@ -685,119 +768,126 @@ todo_page *todo_page_create(SDL_Window *window, ui_context *context, int viewpor
     page->color_button_down = (SDL_Color){86, 86, 94, 255};
     const SDL_Color color_accent = {211, 92, 52, 255};
 
-    const float header_right_x = LAYOUT_MARGIN + HEADER_LEFT_W;
+    // Container dimensions derive from viewport; leaf elements use fixed sizes.
+    const float content_width = compute_content_width(page);
+    const float header_left_w = content_width - HEADER_RIGHT_W;
+    const float header_right_x = LAYOUT_MARGIN + header_left_w;
     const float input_field_x = LAYOUT_MARGIN + ICON_CELL_W;
-    const float input_field_w = CONTENT_WIDTH - ICON_CELL_W - ADD_BUTTON_W;
-    const float add_button_x = LAYOUT_MARGIN + CONTENT_WIDTH - ADD_BUTTON_W;
-    const float filter_x = LAYOUT_MARGIN + CONTENT_WIDTH - FILTER_W;
+    const float add_button_x = LAYOUT_MARGIN + content_width - ADD_BUTTON_W;
+    const float filter_x = LAYOUT_MARGIN + content_width - FILTER_W;
+    const float task_list_height = (float)viewport_height - LIST_TOP_Y - FOOTER_RESERVE;
+    const float footer_rule_y = LIST_TOP_Y + task_list_height + FOOTER_GAP / 2.0F;
+    const float footer_y = footer_rule_y + FOOTER_GAP;
 
-    ui_pane *header_left =
-        ui_pane_create(&(SDL_FRect){LAYOUT_MARGIN, LAYOUT_MARGIN, HEADER_LEFT_W, HEADER_HEIGHT},
+    page->header_left =
+        ui_pane_create(&(SDL_FRect){LAYOUT_MARGIN, LAYOUT_MARGIN, header_left_w, HEADER_HEIGHT},
                        color_panel, &page->color_ink);
-    ui_pane *header_right =
+    page->header_right =
         ui_pane_create(&(SDL_FRect){header_right_x, LAYOUT_MARGIN, HEADER_RIGHT_W, HEADER_HEIGHT},
                        color_panel, &page->color_ink);
 
-    ui_text *title = ui_text_create(LAYOUT_MARGIN + 22.0F, LAYOUT_MARGIN + 28.0F,
-                                    "TODO TASK MANAGEMENT SYSTEM V0.1", page->color_ink, NULL);
+    page->title_text = ui_text_create(LAYOUT_MARGIN + 22.0F, LAYOUT_MARGIN + 28.0F,
+                                      "TODO TASK MANAGEMENT SYSTEM V0.1", page->color_ink, NULL);
 
     char header_datetime[40];
     format_header_datetime(header_datetime, sizeof(header_datetime));
     page->datetime_text = ui_text_create(header_right_x + 24.0F, LAYOUT_MARGIN + 28.0F,
                                          header_datetime, page->color_muted, NULL);
 
-    ui_pane *icon_cell =
+    page->icon_cell =
         ui_pane_create(&(SDL_FRect){LAYOUT_MARGIN, INPUT_ROW_Y, ICON_CELL_W, INPUT_ROW_HEIGHT},
                        color_panel, &page->color_ink);
-    ui_text *icon_arrow =
+    page->icon_arrow =
         ui_text_create(LAYOUT_MARGIN + 22.0F, INPUT_ROW_Y + 26.0F, ">", color_accent, NULL);
 
     page->task_input = ui_text_input_create(
-        &(SDL_FRect){input_field_x, INPUT_ROW_Y, input_field_w, INPUT_ROW_HEIGHT},
+        &(SDL_FRect){input_field_x, INPUT_ROW_Y, INPUT_FIELD_W, INPUT_ROW_HEIGHT},
         page->color_muted, color_panel, page->color_ink, page->color_ink, "enter task...",
         page->color_muted, window, handle_task_input_submit, page);
 
-    ui_button *add_button = ui_button_create(
+    page->add_button = ui_button_create(
         &(SDL_FRect){add_button_x, INPUT_ROW_Y, ADD_BUTTON_W, INPUT_ROW_HEIGHT}, color_button_dark,
         page->color_button_down, "ADD", &page->color_ink, handle_add_button_click, page);
 
     page->stats_text =
         ui_text_create(LAYOUT_MARGIN, STATS_ROW_Y, "0 ACTIVE - 0 DONE", page->color_ink, NULL);
 
-    ui_segment_group *filter_group = ui_segment_group_create(
+    page->filter_group = ui_segment_group_create(
         &(SDL_FRect){filter_x, STATS_ROW_Y, FILTER_W, FILTER_H}, TODO_FILTER_LABELS,
         SDL_arraysize(TODO_FILTER_LABELS), 0U, color_panel, color_button_dark,
         page->color_button_down, page->color_muted, color_panel, &page->color_ink,
         handle_filter_change, page);
 
-    ui_hrule *top_rule = ui_hrule_create(1.0F, page->color_ink, 0.0F);
-    if (top_rule != NULL)
+    page->top_rule = ui_hrule_create(1.0F, page->color_ink, 0.0F);
+    if (page->top_rule != NULL)
     {
-        top_rule->base.rect = (SDL_FRect){LAYOUT_MARGIN, LIST_TOP_Y - 6.0F, CONTENT_WIDTH, 1.0F};
+        page->top_rule->base.rect =
+            (SDL_FRect){LAYOUT_MARGIN, LIST_TOP_Y - 6.0F, content_width, 1.0F};
     }
 
-    ui_pane *list_frame =
-        ui_pane_create(&(SDL_FRect){LAYOUT_MARGIN, LIST_TOP_Y, CONTENT_WIDTH, TASK_LIST_HEIGHT},
+    page->list_frame =
+        ui_pane_create(&(SDL_FRect){LAYOUT_MARGIN, LIST_TOP_Y, content_width, task_list_height},
                        color_panel, &page->color_ink);
 
     page->rows_container = ui_layout_container_create(
-        &(SDL_FRect){LAYOUT_MARGIN, LIST_TOP_Y, CONTENT_WIDTH, TASK_LIST_HEIGHT},
+        &(SDL_FRect){LAYOUT_MARGIN, LIST_TOP_Y, content_width, task_list_height},
         UI_LAYOUT_AXIS_VERTICAL, NULL);
 
-    ui_scroll_view *rows_scroll_view = NULL;
     if (page->rows_container != NULL)
     {
         // Scroll view takes ownership of rows_container on success.
-        rows_scroll_view = ui_scroll_view_create(
-            &(SDL_FRect){LAYOUT_MARGIN, LIST_TOP_Y, CONTENT_WIDTH, TASK_LIST_HEIGHT},
+        page->scroll_view = ui_scroll_view_create(
+            &(SDL_FRect){LAYOUT_MARGIN, LIST_TOP_Y, content_width, task_list_height},
             (ui_element *)page->rows_container, SCROLL_STEP, NULL);
     }
 
-    ui_hrule *bottom_rule = ui_hrule_create(1.0F, page->color_ink, 0.0F);
-    if (bottom_rule != NULL)
+    page->bottom_rule = ui_hrule_create(1.0F, page->color_ink, 0.0F);
+    if (page->bottom_rule != NULL)
     {
-        bottom_rule->base.rect = (SDL_FRect){LAYOUT_MARGIN, FOOTER_RULE_Y, CONTENT_WIDTH, 1.0F};
+        page->bottom_rule->base.rect =
+            (SDL_FRect){LAYOUT_MARGIN, footer_rule_y, content_width, 1.0F};
     }
 
-    ui_button *clear_done = ui_button_create(
-        &(SDL_FRect){LAYOUT_MARGIN, FOOTER_Y, CLEAR_BUTTON_W, CLEAR_BUTTON_H}, color_button_dark,
+    page->clear_done = ui_button_create(
+        &(SDL_FRect){LAYOUT_MARGIN, footer_y, CLEAR_BUTTON_W, CLEAR_BUTTON_H}, color_button_dark,
         page->color_button_down, "CLEAR DONE", &page->color_ink, handle_clear_button_click, page);
 
-    page->remaining_text = ui_text_create(LAYOUT_MARGIN + CONTENT_WIDTH - 168.0F, FOOTER_Y + 18.0F,
+    page->remaining_text = ui_text_create(LAYOUT_MARGIN + content_width - 168.0F, footer_y + 18.0F,
                                           "0 REMAINING", page->color_muted, NULL);
 
-    ui_fps_counter *fps_counter =
+    page->fps_counter =
         ui_fps_counter_create(viewport_width, viewport_height, 12.0F, page->color_ink, NULL);
 
-    if (header_left == NULL || header_right == NULL || title == NULL ||
-        page->datetime_text == NULL || icon_cell == NULL || icon_arrow == NULL ||
-        page->task_input == NULL || add_button == NULL || page->stats_text == NULL ||
-        filter_group == NULL || top_rule == NULL || list_frame == NULL ||
-        page->rows_container == NULL || rows_scroll_view == NULL || bottom_rule == NULL ||
-        clear_done == NULL || page->remaining_text == NULL || fps_counter == NULL)
+    if (page->header_left == NULL || page->header_right == NULL || page->title_text == NULL ||
+        page->datetime_text == NULL || page->icon_cell == NULL || page->icon_arrow == NULL ||
+        page->task_input == NULL || page->add_button == NULL || page->stats_text == NULL ||
+        page->filter_group == NULL || page->top_rule == NULL || page->list_frame == NULL ||
+        page->rows_container == NULL || page->scroll_view == NULL || page->bottom_rule == NULL ||
+        page->clear_done == NULL || page->remaining_text == NULL || page->fps_counter == NULL)
     {
-        destroy_element((ui_element *)rows_scroll_view);
-        if (rows_scroll_view == NULL)
+        destroy_element((ui_element *)page->scroll_view);
+        if (page->scroll_view == NULL)
         {
             destroy_element((ui_element *)page->rows_container);
         }
-        destroy_element((ui_element *)header_left);
-        destroy_element((ui_element *)header_right);
-        destroy_element((ui_element *)title);
+        destroy_element((ui_element *)page->header_left);
+        destroy_element((ui_element *)page->header_right);
+        destroy_element((ui_element *)page->title_text);
         destroy_element((ui_element *)page->datetime_text);
-        destroy_element((ui_element *)icon_cell);
-        destroy_element((ui_element *)icon_arrow);
+        destroy_element((ui_element *)page->icon_cell);
+        destroy_element((ui_element *)page->icon_arrow);
         destroy_element((ui_element *)page->task_input);
-        destroy_element((ui_element *)add_button);
+        destroy_element((ui_element *)page->add_button);
         destroy_element((ui_element *)page->stats_text);
-        destroy_element((ui_element *)filter_group);
-        destroy_element((ui_element *)top_rule);
-        destroy_element((ui_element *)list_frame);
-        destroy_element((ui_element *)bottom_rule);
-        destroy_element((ui_element *)clear_done);
+        destroy_element((ui_element *)page->filter_group);
+        destroy_element((ui_element *)page->top_rule);
+        destroy_element((ui_element *)page->list_frame);
+        destroy_element((ui_element *)page->bottom_rule);
+        destroy_element((ui_element *)page->clear_done);
         destroy_element((ui_element *)page->remaining_text);
-        destroy_element((ui_element *)fps_counter);
+        destroy_element((ui_element *)page->fps_counter);
         page->rows_container = NULL;
+        page->scroll_view = NULL;
         page->task_input = NULL;
         page->stats_text = NULL;
         page->remaining_text = NULL;
@@ -806,23 +896,23 @@ todo_page *todo_page_create(SDL_Window *window, ui_context *context, int viewpor
         return NULL;
     }
 
-    if (!register_element(page, (ui_element *)header_left) ||
-        !register_element(page, (ui_element *)header_right) ||
-        !register_element(page, (ui_element *)title) ||
+    if (!register_element(page, (ui_element *)page->header_left) ||
+        !register_element(page, (ui_element *)page->header_right) ||
+        !register_element(page, (ui_element *)page->title_text) ||
         !register_element(page, (ui_element *)page->datetime_text) ||
-        !register_element(page, (ui_element *)icon_cell) ||
-        !register_element(page, (ui_element *)icon_arrow) ||
+        !register_element(page, (ui_element *)page->icon_cell) ||
+        !register_element(page, (ui_element *)page->icon_arrow) ||
         !register_element(page, (ui_element *)page->task_input) ||
-        !register_element(page, (ui_element *)add_button) ||
+        !register_element(page, (ui_element *)page->add_button) ||
         !register_element(page, (ui_element *)page->stats_text) ||
-        !register_element(page, (ui_element *)filter_group) ||
-        !register_element(page, (ui_element *)top_rule) ||
-        !register_element(page, (ui_element *)list_frame) ||
-        !register_element(page, (ui_element *)rows_scroll_view) ||
-        !register_element(page, (ui_element *)bottom_rule) ||
-        !register_element(page, (ui_element *)clear_done) ||
+        !register_element(page, (ui_element *)page->filter_group) ||
+        !register_element(page, (ui_element *)page->top_rule) ||
+        !register_element(page, (ui_element *)page->list_frame) ||
+        !register_element(page, (ui_element *)page->scroll_view) ||
+        !register_element(page, (ui_element *)page->bottom_rule) ||
+        !register_element(page, (ui_element *)page->clear_done) ||
         !register_element(page, (ui_element *)page->remaining_text) ||
-        !register_element(page, (ui_element *)fps_counter))
+        !register_element(page, (ui_element *)page->fps_counter))
     {
         destroy_task_storage(page);
         unregister_elements(page);

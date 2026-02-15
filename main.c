@@ -25,10 +25,10 @@ int main(void)
         return 1;
     }
 
-    // Create the main high-density-aware application window.
+    // Create the main high-density-aware, resizable application window.
     SDL_Window *window =
         SDL_CreateWindow("CUI - a minimalist UI framework in C and SDL3", WINDOW_WIDTH,
-                         WINDOW_HEIGHT, SDL_WINDOW_HIGH_PIXEL_DENSITY);
+                         WINDOW_HEIGHT, SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_RESIZABLE);
     if (window == NULL)
     {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_CreateWindow failed: %s", SDL_GetError());
@@ -37,6 +37,7 @@ int main(void)
     }
 
     SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
+    SDL_SetWindowMinimumSize(window, 640, 480);
 
     // Create the renderer used by all UI elements during the render phase.
     SDL_Renderer *renderer = SDL_CreateRenderer(window, NULL);
@@ -48,8 +49,10 @@ int main(void)
         return 1;
     }
 
-    // Keep presentation consistent across displays with a fixed logical viewport.
     SDL_SetRenderVSync(renderer, 1);
+
+    // Map the render coordinate space to the logical window size so layout
+    // code works in points (not physical pixels) on high-DPI displays.
     SDL_SetRenderLogicalPresentation(renderer, WINDOW_WIDTH, WINDOW_HEIGHT,
                                      SDL_LOGICAL_PRESENTATION_LETTERBOX);
 
@@ -96,6 +99,14 @@ int main(void)
             {
                 running = false;
                 continue;
+            }
+            if (event.type == SDL_EVENT_WINDOW_RESIZED)
+            {
+                const int new_w = event.window.data1;
+                const int new_h = event.window.data2;
+                SDL_SetRenderLogicalPresentation(renderer, new_w, new_h,
+                                                 SDL_LOGICAL_PRESENTATION_LETTERBOX);
+                todo_page_resize(page, new_w, new_h);
             }
             ui_context_handle_event(&context, &event);
         }

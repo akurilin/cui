@@ -51,6 +51,27 @@ todo_page *todo_page_create(SDL_Window *window, ui_context *context, int viewpor
                             int viewport_height);
 
 /*
+ * Reposition and resize all page elements for a new viewport size.
+ *
+ * Purpose:
+ * - Reflow layout so content stretches horizontally, the task list fills
+ *   available vertical space, and footer elements track the bottom edge.
+ *
+ * Parameters:
+ * - `page`: page instance returned by `todo_page_create`.
+ * - `viewport_width`: new viewport width in pixels.
+ * - `viewport_height`: new viewport height in pixels.
+ *
+ * Return value:
+ * - true on success.
+ * - false if `page` is NULL or row rebuild fails.
+ *
+ * Ownership/lifecycle:
+ * - Does not transfer ownership. Safe to call on every resize event.
+ */
+bool todo_page_resize(todo_page *page, int viewport_width, int viewport_height);
+
+/*
  * Advance page-specific per-frame state.
  *
  * Purpose:
