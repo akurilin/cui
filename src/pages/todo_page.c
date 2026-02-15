@@ -10,6 +10,7 @@
 #include "ui/ui_segment_group.h"
 #include "ui/ui_text.h"
 #include "ui/ui_text_input.h"
+#include "ui/ui_window.h"
 #include "util/string_util.h"
 
 #include <ctype.h>
@@ -768,13 +769,22 @@ todo_page *todo_page_create(SDL_Window *window, ui_context *context, int viewpor
 
     ui_fps_counter *fps_counter =
         ui_fps_counter_create(viewport_width, viewport_height, 12.0F, page->color_ink, NULL);
+    ui_window *window_root =
+        ui_window_create(&(SDL_FRect){0.0F, 0.0F, (float)viewport_width, (float)viewport_height});
+    if (fps_counter != NULL && window_root != NULL)
+    {
+        fps_counter->base.parent = &window_root->base;
+        fps_counter->base.align_h = UI_ALIGN_RIGHT;
+        fps_counter->base.align_v = UI_ALIGN_BOTTOM;
+    }
 
     if (header_left == NULL || header_right == NULL || title == NULL ||
         page->datetime_text == NULL || icon_cell == NULL || icon_arrow == NULL ||
         page->task_input == NULL || add_button == NULL || page->stats_text == NULL ||
         filter_group == NULL || top_rule == NULL || list_frame == NULL ||
         page->rows_container == NULL || rows_scroll_view == NULL || bottom_rule == NULL ||
-        clear_done == NULL || page->remaining_text == NULL || fps_counter == NULL)
+        clear_done == NULL || page->remaining_text == NULL || fps_counter == NULL ||
+        window_root == NULL)
     {
         destroy_element((ui_element *)rows_scroll_view);
         if (rows_scroll_view == NULL)
@@ -797,6 +807,7 @@ todo_page *todo_page_create(SDL_Window *window, ui_context *context, int viewpor
         destroy_element((ui_element *)clear_done);
         destroy_element((ui_element *)page->remaining_text);
         destroy_element((ui_element *)fps_counter);
+        destroy_element((ui_element *)window_root);
         page->rows_container = NULL;
         page->task_input = NULL;
         page->stats_text = NULL;
@@ -808,6 +819,7 @@ todo_page *todo_page_create(SDL_Window *window, ui_context *context, int viewpor
 
     if (!register_element(page, (ui_element *)header_left) ||
         !register_element(page, (ui_element *)header_right) ||
+        !register_element(page, (ui_element *)window_root) ||
         !register_element(page, (ui_element *)title) ||
         !register_element(page, (ui_element *)page->datetime_text) ||
         !register_element(page, (ui_element *)icon_cell) ||
