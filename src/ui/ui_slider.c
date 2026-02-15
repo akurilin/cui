@@ -18,24 +18,24 @@ static float clamp_slider_value(const ui_slider *slider, float value)
     return value;
 }
 
-static float calculate_thumb_x(const ui_slider *slider)
+static float calculate_thumb_x(const ui_slider *slider, const SDL_FRect *sr)
 {
     const float range = slider->max_value - slider->min_value;
-    const float usable_width = slider->base.rect.w - slider->thumb_width;
+    const float usable_width = sr->w - slider->thumb_width;
     const float t = (slider->value - slider->min_value) / range;
-    return slider->base.rect.x + (t * usable_width);
+    return sr->x + (t * usable_width);
 }
 
-static SDL_FRect get_thumb_rect(const ui_slider *slider)
+static SDL_FRect get_thumb_rect(const ui_slider *slider, const SDL_FRect *sr)
 {
-    return (SDL_FRect){calculate_thumb_x(slider), slider->base.rect.y, slider->thumb_width,
-                       slider->base.rect.h};
+    return (SDL_FRect){calculate_thumb_x(slider, sr), sr->y, slider->thumb_width, sr->h};
 }
 
 static void set_slider_value_from_cursor(ui_slider *slider, float cursor_x)
 {
-    const float min_thumb_x = slider->base.rect.x;
-    const float max_thumb_x = slider->base.rect.x + slider->base.rect.w - slider->thumb_width;
+    const SDL_FRect sr = ui_element_screen_rect(&slider->base);
+    const float min_thumb_x = sr.x;
+    const float max_thumb_x = sr.x + sr.w - slider->thumb_width;
     float clamped_thumb_x = cursor_x - (slider->thumb_width * 0.5F);
     if (clamped_thumb_x < min_thumb_x)
     {
@@ -46,9 +46,8 @@ static void set_slider_value_from_cursor(ui_slider *slider, float cursor_x)
         clamped_thumb_x = max_thumb_x;
     }
 
-    const float usable_width = slider->base.rect.w - slider->thumb_width;
-    const float t =
-        usable_width > 0.0F ? (clamped_thumb_x - slider->base.rect.x) / usable_width : 0.0F;
+    const float usable_width = sr.w - slider->thumb_width;
+    const float t = usable_width > 0.0F ? (clamped_thumb_x - sr.x) / usable_width : 0.0F;
     const float new_value = slider->min_value + (t * (slider->max_value - slider->min_value));
 
     const float old_value = slider->value;
@@ -66,7 +65,8 @@ static bool handle_slider_event(ui_element *element, const SDL_Event *event)
     if (event->type == SDL_EVENT_MOUSE_BUTTON_DOWN && event->button.button == SDL_BUTTON_LEFT)
     {
         const SDL_FPoint cursor = {event->button.x, event->button.y};
-        if (SDL_PointInRectFloat(&cursor, &slider->base.rect))
+        const SDL_FRect sr = ui_element_screen_rect(element);
+        if (SDL_PointInRectFloat(&cursor, &sr))
         {
             slider->is_dragging = true;
             set_slider_value_from_cursor(slider, event->button.x);
@@ -103,9 +103,10 @@ static void update_slider(ui_element *element, float delta_seconds)
 static void render_slider(const ui_element *element, SDL_Renderer *renderer)
 {
     const ui_slider *slider = (const ui_slider *)element;
-    const float track_y = slider->base.rect.y + ((slider->base.rect.h - TRACK_HEIGHT) * 0.5F);
-    const SDL_FRect track_rect = {slider->base.rect.x, track_y, slider->base.rect.w, TRACK_HEIGHT};
-    const SDL_FRect thumb_rect = get_thumb_rect(slider);
+    const SDL_FRect sr = ui_element_screen_rect(element);
+    const float track_y = sr.y + ((sr.h - TRACK_HEIGHT) * 0.5F);
+    const SDL_FRect track_rect = {sr.x, track_y, sr.w, TRACK_HEIGHT};
+    const SDL_FRect thumb_rect = get_thumb_rect(slider, &sr);
     const SDL_Color current_thumb_color =
         slider->is_dragging ? slider->active_thumb_color : slider->thumb_color;
 
@@ -119,7 +120,7 @@ static void render_slider(const ui_element *element, SDL_Renderer *renderer)
 
     if (slider->base.has_border)
     {
-        ui_element_render_inner_border(renderer, &slider->base.rect, slider->base.border_color,
+        ui_element_render_inner_border(renderer, &sr, slider->base.border_color,
                                        slider->base.border_width);
     }
 }
@@ -155,6 +156,9 @@ ui_slider *ui_slider_create(const SDL_FRect *rect, float min_value, float max_va
     slider->base.ops = &SLIDER_OPS;
     slider->base.visible = true;
     slider->base.enabled = true;
+    slider->base.parent = NULL;
+    slider->base.align_h = UI_ALIGN_LEFT;
+    slider->base.align_v = UI_ALIGN_TOP;
     ui_element_set_border(&slider->base, border_color, 1.0F);
     slider->min_value = min_value;
     slider->max_value = max_value;

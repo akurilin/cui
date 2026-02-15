@@ -80,6 +80,8 @@ ui_layout_container *ui_layout_container_create(const SDL_FRect *rect, ui_layout
  * - On success, ownership transfers to the container.
  * - On failure, ownership remains with the caller.
  * - child must be non-NULL and must provide a non-NULL ops table.
+ * - child must not already have a parent (reparenting is rejected).
+ * - The call is rejected if attaching child would create a parent-cycle.
  *
  * Parameters:
  * - container: destination layout container (must be non-NULL)

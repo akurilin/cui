@@ -18,12 +18,13 @@ static void update_hrule(ui_element *element, float delta_seconds)
 static void render_hrule(const ui_element *element, SDL_Renderer *renderer)
 {
     const ui_hrule *rule = (const ui_hrule *)element;
+    const SDL_FRect sr = ui_element_screen_rect(element);
 
-    const float inset = rule->inset_fraction * element->rect.w;
+    const float inset = rule->inset_fraction * sr.w;
     const SDL_FRect line_rect = {
-        element->rect.x + inset,
-        element->rect.y + (element->rect.h - 1.0F) / 2.0F,
-        element->rect.w - 2.0F * inset,
+        sr.x + inset,
+        sr.y + (sr.h - 1.0F) / 2.0F,
+        sr.w - 2.0F * inset,
         1.0F,
     };
 
@@ -52,6 +53,9 @@ ui_hrule *ui_hrule_create(float thickness, SDL_Color color, float inset_fraction
     rule->base.ops = &HRULE_OPS;
     rule->base.visible = true;
     rule->base.enabled = true;
+    rule->base.parent = NULL;
+    rule->base.align_h = UI_ALIGN_LEFT;
+    rule->base.align_v = UI_ALIGN_TOP;
     ui_element_clear_border(&rule->base);
     rule->color = color;
     rule->inset_fraction = inset_fraction;

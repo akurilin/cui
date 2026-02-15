@@ -14,8 +14,18 @@ static void update_fps_label(ui_fps_counter *counter)
     const float label_width = (float)strlen(counter->label) * DEBUG_GLYPH_WIDTH;
     counter->base.rect.w = label_width;
     counter->base.rect.h = DEBUG_GLYPH_HEIGHT;
-    counter->base.rect.x = (float)counter->viewport_width - counter->padding - label_width;
-    counter->base.rect.y = (float)counter->viewport_height - counter->padding - DEBUG_GLYPH_HEIGHT;
+
+    if (counter->base.parent == NULL)
+    {
+        counter->base.rect.x = (float)counter->viewport_width - counter->padding - label_width;
+        counter->base.rect.y =
+            (float)counter->viewport_height - counter->padding - DEBUG_GLYPH_HEIGHT;
+    }
+    else
+    {
+        counter->base.rect.x = counter->padding;
+        counter->base.rect.y = counter->padding;
+    }
 }
 
 static bool handle_fps_counter_event(ui_element *element, const SDL_Event *event)
@@ -46,13 +56,14 @@ static void update_fps_counter(ui_element *element, float delta_seconds)
 static void render_fps_counter(const ui_element *element, SDL_Renderer *renderer)
 {
     const ui_fps_counter *counter = (const ui_fps_counter *)element;
+    const SDL_FRect sr = ui_element_screen_rect(element);
 
     SDL_SetRenderDrawColor(renderer, counter->color.r, counter->color.g, counter->color.b,
                            counter->color.a);
-    SDL_RenderDebugText(renderer, counter->base.rect.x, counter->base.rect.y, counter->label);
+    SDL_RenderDebugText(renderer, sr.x, sr.y, counter->label);
     if (counter->base.has_border)
     {
-        ui_element_render_inner_border(renderer, &counter->base.rect, counter->base.border_color,
+        ui_element_render_inner_border(renderer, &sr, counter->base.border_color,
                                        counter->base.border_width);
     }
 }
@@ -85,6 +96,9 @@ ui_fps_counter *ui_fps_counter_create(int viewport_width, int viewport_height, f
     counter->base.ops = &FPS_COUNTER_OPS;
     counter->base.visible = true;
     counter->base.enabled = true;
+    counter->base.parent = NULL;
+    counter->base.align_h = UI_ALIGN_RIGHT;
+    counter->base.align_v = UI_ALIGN_BOTTOM;
     ui_element_set_border(&counter->base, border_color, 1.0F);
     counter->color = color;
     counter->viewport_width = viewport_width;

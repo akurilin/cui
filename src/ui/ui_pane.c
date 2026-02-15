@@ -18,13 +18,14 @@ static void update_pane(ui_element *element, float delta_seconds)
 static void render_pane(const ui_element *element, SDL_Renderer *renderer)
 {
     const ui_pane *pane = (const ui_pane *)element;
+    const SDL_FRect sr = ui_element_screen_rect(element);
 
     SDL_SetRenderDrawColor(renderer, pane->fill_color.r, pane->fill_color.g, pane->fill_color.b,
                            pane->fill_color.a);
-    SDL_RenderFillRect(renderer, &pane->base.rect);
+    SDL_RenderFillRect(renderer, &sr);
     if (pane->base.has_border)
     {
-        ui_element_render_inner_border(renderer, &pane->base.rect, pane->base.border_color,
+        ui_element_render_inner_border(renderer, &sr, pane->base.border_color,
                                        pane->base.border_width);
     }
 }
@@ -56,6 +57,9 @@ ui_pane *ui_pane_create(const SDL_FRect *rect, SDL_Color fill_color, const SDL_C
     pane->base.ops = &PANE_OPS;
     pane->base.visible = true;
     pane->base.enabled = true;
+    pane->base.parent = NULL;
+    pane->base.align_h = UI_ALIGN_LEFT;
+    pane->base.align_v = UI_ALIGN_TOP;
     ui_element_set_border(&pane->base, border_color, 1.0F);
     pane->fill_color = fill_color;
 

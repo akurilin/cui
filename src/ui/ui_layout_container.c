@@ -11,6 +11,24 @@ static bool is_valid_element(const ui_element *element)
     return element != NULL && element->ops != NULL;
 }
 
+static bool would_create_parent_cycle(const ui_element *child, const ui_element *new_parent)
+{
+    if (child == NULL || new_parent == NULL)
+    {
+        return false;
+    }
+
+    for (const ui_element *cursor = new_parent; cursor != NULL; cursor = cursor->parent)
+    {
+        if (cursor == child)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 static float clamp_non_negative(float value)
 {
     if (value < 0.0F)
@@ -24,14 +42,12 @@ static void layout_children(ui_layout_container *container)
 {
     const float padding = DEFAULT_LAYOUT_PADDING;
     const float spacing = DEFAULT_LAYOUT_SPACING;
-    const float inner_x = container->base.rect.x + padding;
-    const float inner_y = container->base.rect.y + padding;
     const float inner_w = clamp_non_negative(container->base.rect.w - (padding * 2.0F));
     const float inner_h = clamp_non_negative(container->base.rect.h - (padding * 2.0F));
 
     if (container->axis == UI_LAYOUT_AXIS_VERTICAL)
     {
-        float cursor_y = inner_y;
+        float cursor_y = padding;
         for (size_t i = 0; i < container->child_count; ++i)
         {
             ui_element *child = container->children[i];
@@ -41,7 +57,7 @@ static void layout_children(ui_layout_container *container)
             }
 
             const float child_height = clamp_non_negative(child->rect.h);
-            child->rect.x = inner_x;
+            child->rect.x = padding;
             child->rect.y = cursor_y;
             child->rect.w = inner_w;
             child->rect.h = child_height;
@@ -51,9 +67,9 @@ static void layout_children(ui_layout_container *container)
         // Auto-size rect.h to the total content height so parent elements
         // (such as a scroll view) can read the container's rect to determine
         // how much content it holds.
-        if (cursor_y > inner_y)
+        if (cursor_y > padding)
         {
-            container->base.rect.h = (cursor_y - spacing + padding) - container->base.rect.y;
+            container->base.rect.h = cursor_y - spacing + padding;
         }
         else
         {
@@ -62,7 +78,7 @@ static void layout_children(ui_layout_container *container)
         return;
     }
 
-    float cursor_x = inner_x;
+    float cursor_x = padding;
     for (size_t i = 0; i < container->child_count; ++i)
     {
         ui_element *child = container->children[i];
@@ -73,7 +89,7 @@ static void layout_children(ui_layout_container *container)
 
         const float child_width = clamp_non_negative(child->rect.w);
         child->rect.x = cursor_x;
-        child->rect.y = inner_y;
+        child->rect.y = padding;
         child->rect.w = child_width;
         child->rect.h = inner_h;
         cursor_x += child_width + spacing;
@@ -137,8 +153,9 @@ static void render_layout_container(const ui_element *element, SDL_Renderer *ren
 
     if (container->base.has_border)
     {
-        ui_element_render_inner_border(renderer, &container->base.rect,
-                                       container->base.border_color, container->base.border_width);
+        const SDL_FRect sr = ui_element_screen_rect(element);
+        ui_element_render_inner_border(renderer, &sr, container->base.border_color,
+                                       container->base.border_width);
     }
 }
 
@@ -184,6 +201,9 @@ ui_layout_container *ui_layout_container_create(const SDL_FRect *rect, ui_layout
     container->base.ops = &LAYOUT_CONTAINER_OPS;
     container->base.visible = true;
     container->base.enabled = true;
+    container->base.parent = NULL;
+    container->base.align_h = UI_ALIGN_LEFT;
+    container->base.align_v = UI_ALIGN_TOP;
     ui_element_set_border(&container->base, border_color, 1.0F);
     container->axis = axis;
     container->children = NULL;
@@ -196,6 +216,16 @@ ui_layout_container *ui_layout_container_create(const SDL_FRect *rect, ui_layout
 bool ui_layout_container_add_child(ui_layout_container *container, ui_element *child)
 {
     if (container == NULL || !is_valid_element(child))
+    {
+        return false;
+    }
+
+    if (child->parent != NULL)
+    {
+        return false;
+    }
+
+    if (would_create_parent_cycle(child, &container->base))
     {
         return false;
     }
@@ -213,6 +243,7 @@ bool ui_layout_container_add_child(ui_layout_container *container, ui_element *c
         container->child_capacity = new_capacity;
     }
 
+    child->parent = &container->base;
     container->children[container->child_count++] = child;
     return true;
 }
@@ -236,6 +267,10 @@ bool ui_layout_container_remove_child(ui_layout_container *container, ui_element
         {
             child->ops->destroy(child);
         }
+        else
+        {
+            child->parent = NULL;
+        }
 
         for (size_t j = i; j + 1U < container->child_count; ++j)
         {
@@ -255,15 +290,20 @@ void ui_layout_container_clear_children(ui_layout_container *container, bool des
         return;
     }
 
-    if (destroy_children)
+    for (size_t i = 0; i < container->child_count; ++i)
     {
-        for (size_t i = 0; i < container->child_count; ++i)
+        ui_element *child = container->children[i];
+        if (!is_valid_element(child))
         {
-            ui_element *child = container->children[i];
-            if (is_valid_element(child) && child->ops->destroy != NULL)
-            {
-                child->ops->destroy(child);
-            }
+            continue;
+        }
+        if (destroy_children && child->ops->destroy != NULL)
+        {
+            child->ops->destroy(child);
+        }
+        else
+        {
+            child->parent = NULL;
         }
     }
 

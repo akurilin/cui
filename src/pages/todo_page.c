@@ -10,6 +10,7 @@
 #include "ui/ui_segment_group.h"
 #include "ui/ui_text.h"
 #include "ui/ui_text_input.h"
+#include "ui/ui_window.h"
 #include "util/string_util.h"
 
 #include <ctype.h>
@@ -66,6 +67,7 @@ struct todo_page
     ui_layout_container *rows_container;
     ui_button *clear_done;
     ui_fps_counter *fps_counter;
+    ui_window *window_root;
     ui_text *stats_text;
     ui_text *remaining_text;
     ui_text_input *task_input;
@@ -722,6 +724,8 @@ static void relayout_page(todo_page *page)
     page->remaining_text->base.rect.y = footer_y + 18.0F;
 
     // FPS counter anchoring.
+    page->window_root->base.rect.w = (float)page->viewport_width;
+    page->window_root->base.rect.h = (float)page->viewport_height;
     page->fps_counter->viewport_width = page->viewport_width;
     page->fps_counter->viewport_height = page->viewport_height;
 }
@@ -857,13 +861,22 @@ todo_page *todo_page_create(SDL_Window *window, ui_context *context, int viewpor
 
     page->fps_counter =
         ui_fps_counter_create(viewport_width, viewport_height, 12.0F, page->color_ink, NULL);
+    page->window_root =
+        ui_window_create(&(SDL_FRect){0.0F, 0.0F, (float)viewport_width, (float)viewport_height});
+    if (page->fps_counter != NULL && page->window_root != NULL)
+    {
+        page->fps_counter->base.parent = &page->window_root->base;
+        page->fps_counter->base.align_h = UI_ALIGN_RIGHT;
+        page->fps_counter->base.align_v = UI_ALIGN_BOTTOM;
+    }
 
     if (page->header_left == NULL || page->header_right == NULL || page->title_text == NULL ||
         page->datetime_text == NULL || page->icon_cell == NULL || page->icon_arrow == NULL ||
         page->task_input == NULL || page->add_button == NULL || page->stats_text == NULL ||
         page->filter_group == NULL || page->top_rule == NULL || page->list_frame == NULL ||
         page->rows_container == NULL || page->scroll_view == NULL || page->bottom_rule == NULL ||
-        page->clear_done == NULL || page->remaining_text == NULL || page->fps_counter == NULL)
+        page->clear_done == NULL || page->remaining_text == NULL || page->fps_counter == NULL ||
+        page->window_root == NULL)
     {
         destroy_element((ui_element *)page->scroll_view);
         if (page->scroll_view == NULL)
@@ -886,6 +899,7 @@ todo_page *todo_page_create(SDL_Window *window, ui_context *context, int viewpor
         destroy_element((ui_element *)page->clear_done);
         destroy_element((ui_element *)page->remaining_text);
         destroy_element((ui_element *)page->fps_counter);
+        destroy_element((ui_element *)page->window_root);
         page->rows_container = NULL;
         page->scroll_view = NULL;
         page->task_input = NULL;
@@ -898,6 +912,8 @@ todo_page *todo_page_create(SDL_Window *window, ui_context *context, int viewpor
 
     if (!register_element(page, (ui_element *)page->header_left) ||
         !register_element(page, (ui_element *)page->header_right) ||
+        !register_element(page, (ui_element *)page->title_text) ||
+        !register_element(page, (ui_element *)page->window_root) ||
         !register_element(page, (ui_element *)page->title_text) ||
         !register_element(page, (ui_element *)page->datetime_text) ||
         !register_element(page, (ui_element *)page->icon_cell) ||

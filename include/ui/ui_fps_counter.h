@@ -32,6 +32,12 @@ typedef struct ui_fps_counter
  * - color: text color
  * - border_color: optional border color (NULL disables border)
  *
+ * Positioning behavior:
+ * - When `base.parent` is NULL, this widget computes absolute bottom-right
+ *   placement from viewport_width/viewport_height.
+ * - When `base.parent` is non-NULL, this widget uses parent-relative insets
+ *   with `align_h=UI_ALIGN_RIGHT` and `align_v=UI_ALIGN_BOTTOM`.
+ *
  * Update requirement: ui_context_update must be called each frame with a real
  * delta_seconds value, otherwise FPS output will not be meaningful.
  */

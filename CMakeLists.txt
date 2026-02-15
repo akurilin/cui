@@ -2,6 +2,7 @@
 cmake_minimum_required(VERSION 3.16)
 # Define the project name; this is the root CMake project in this repository.
 project(cui)
+include(CTest)
 
 # set the output directory for built objects.
 # This makes sure that the dynamic library goes into the build directory automatically.
@@ -37,6 +38,7 @@ add_executable(
     src/ui/ui_slider.c
     src/ui/ui_text.c
     src/ui/ui_text_input.c
+    src/ui/ui_window.c
     src/util/string_util.c
 )
 
@@ -45,3 +47,18 @@ target_include_directories(cui PRIVATE include)
 # Link to the actual SDL3 library.
 # Link the "cui" target against SDL3, privately (dependency is used for building cui, not exposed to dependents).
 target_link_libraries(cui PRIVATE SDL3::SDL3 SDL3_image::SDL3_image)
+
+if(BUILD_TESTING)
+    add_executable(
+        ui_hierarchy_tests
+        tests/ui_hierarchy_tests.c
+        src/ui/ui_element.c
+        src/ui/ui_layout_container.c
+        src/ui/ui_pane.c
+        src/ui/ui_scroll_view.c
+    )
+
+    target_include_directories(ui_hierarchy_tests PRIVATE include)
+    target_link_libraries(ui_hierarchy_tests PRIVATE SDL3::SDL3)
+    add_test(NAME ui_hierarchy_tests COMMAND ui_hierarchy_tests)
+endif()
