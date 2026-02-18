@@ -73,6 +73,7 @@ set(APP_SOURCES
     src/ui/ui_text.c
     src/ui/ui_text_input.c
     src/ui/ui_window.c
+    src/util/fail_fast.c
     src/util/string_util.c)
 
 # Create your game executable target as usual

@@ -102,6 +102,7 @@ Key files:
 - `include/ui/ui_scroll_view.h`, `src/ui/ui_scroll_view.c`: scrollable viewport wrapper with mouse-wheel input and clip-rect rendering.
 - `include/ui/ui_fps_counter.h`, `src/ui/ui_fps_counter.c`: self-updating FPS label anchored to viewport bottom-right.
 - `include/ui/ui_window.h`, `src/ui/ui_window.c`: non-rendering root parent element used for window-relative anchoring.
+- `include/util/fail_fast.h`, `src/util/fail_fast.c`: shared fail-fast logger/abort helper for unrecoverable internal errors.
 
 ### Frame/Lifecycle Flow
 
@@ -176,7 +177,7 @@ In short: resize updates page-level geometry immediately, and container-based ch
 
 - Element constructors (`ui_button_create`, `ui_pane_create`, etc.) allocate on the heap and return ownership to caller.
 - After `ui_runtime_add` succeeds, ownership transfers to `ui_runtime`.
-- Sample page constructors (`todo_page_create`, `corners_page_create`, `showcase_page_create`) now follow a fail-fast policy for unrecoverable internal failures (allocation/creation/registration): they log a critical error and abort instead of returning a recoverable error to callers.
+- Sample page lifecycle callbacks (`create`/`resize`/`update`/`destroy`) follow a fail-fast policy for unrecoverable internal failures and invalid internal state: they log a critical error and abort instead of returning recoverable errors.
 - `todo_page_destroy` removes and destroys elements that were registered by the page, then frees page-owned task/model storage.
 
 ## Roadmap

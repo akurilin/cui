@@ -11,10 +11,10 @@
 #include "ui/ui_text.h"
 #include "ui/ui_text_input.h"
 #include "ui/ui_window.h"
+#include "util/fail_fast.h"
 #include "util/string_util.h"
 
 #include <ctype.h>
-#include <stdarg.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -115,18 +115,6 @@ static const float FILTER_H = 40.0F;
 static const char *TODO_FILTER_LABELS[] = {"ALL", "ACTIVE", "DONE"};
 
 /*
- * Abort process after logging an unrecoverable TODO-page failure.
- */
-static _Noreturn void fail_fast(const char *format, ...)
-{
-    va_list args;
-    va_start(args, format);
-    SDL_LogMessageV(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_CRITICAL, format, args);
-    va_end(args);
-    abort();
-}
-
-/*
  * Register one page-owned element into the UI context and track it for teardown.
  */
 static void register_element(todo_page *page, ui_element *element)
@@ -156,7 +144,7 @@ static void unregister_elements(todo_page *page)
 {
     if (page == NULL || page->context == NULL)
     {
-        return;
+        fail_fast("todo_page: invalid state in unregister_elements");
     }
 
     for (size_t i = page->registered_count; i > 0U; --i)
@@ -238,7 +226,7 @@ static bool does_task_match_filter(const todo_page *page, const todo_task *task)
 {
     if (page == NULL || task == NULL)
     {
-        return false;
+        fail_fast("todo_page: invalid state in does_task_match_filter");
     }
 
     switch (page->selected_filter_index)
@@ -614,7 +602,7 @@ static void clear_done_tasks(todo_page *page)
 {
     if (page == NULL)
     {
-        return;
+        fail_fast("todo_page: invalid state in clear_done_tasks");
     }
 
     size_t write = 0U;
@@ -646,7 +634,7 @@ static void destroy_task_storage(todo_page *page)
 {
     if (page == NULL)
     {
-        return;
+        fail_fast("todo_page: invalid state in destroy_task_storage");
     }
 
     for (size_t i = 0; i < page->task_count; ++i)

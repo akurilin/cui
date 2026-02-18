@@ -2,8 +2,8 @@
 
 #include "ui/ui_button.h"
 #include "ui/ui_window.h"
+#include "util/fail_fast.h"
 
-#include <stdarg.h>
 #include <stdlib.h>
 
 typedef enum corner_button_slot
@@ -54,15 +54,6 @@ static const anchored_button_spec BUTTON_SPECS[CORNER_BUTTON_COUNT] = {
                                     EDGE_MARGIN},
 };
 
-static _Noreturn void fail_fast(const char *format, ...)
-{
-    va_list args;
-    va_start(args, format);
-    SDL_LogMessageV(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_CRITICAL, format, args);
-    va_end(args);
-    abort();
-}
-
 static void handle_corner_button_click(void *context) { (void)context; }
 
 static ui_button *create_anchored_button(const anchored_button_spec *spec, ui_element *parent)
@@ -93,7 +84,7 @@ static void remove_registered_elements(corners_page *page)
 {
     if (page == NULL || page->context == NULL)
     {
-        return;
+        fail_fast("corners_page: invalid state in remove_registered_elements");
     }
 
     for (size_t i = 0U; i < SDL_arraysize(page->buttons); ++i)

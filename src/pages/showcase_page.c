@@ -13,8 +13,8 @@
 #include "ui/ui_text.h"
 #include "ui/ui_text_input.h"
 #include "ui/ui_window.h"
+#include "util/fail_fast.h"
 
-#include <stdarg.h>
 #include <stdlib.h>
 
 struct showcase_page
@@ -46,15 +46,6 @@ static const float FOOTER_RESERVE = 40.0F;
 static const float MAIN_SCROLL_STEP = 24.0F;
 static const char *SHOWCASE_SEGMENTS[] = {"FIRST", "SECOND", "THIRD"};
 
-static _Noreturn void fail_fast(const char *format, ...)
-{
-    va_list args;
-    va_start(args, format);
-    SDL_LogMessageV(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_CRITICAL, format, args);
-    va_end(args);
-    abort();
-}
-
 static void register_element(showcase_page *page, ui_element *element)
 {
     if (page == NULL || page->context == NULL || element == NULL)
@@ -79,7 +70,7 @@ static void unregister_elements(showcase_page *page)
 {
     if (page == NULL || page->context == NULL)
     {
-        return;
+        fail_fast("showcase_page: invalid state in unregister_elements");
     }
 
     for (size_t i = page->registered_count; i > 0U; --i)
