@@ -3,10 +3,11 @@
 
 # Project description
 
-This project is focused on building a reusable UI kit in C using SDL3, currently targeting macOS. The sample app currently includes two pages:
+This project is focused on building a reusable UI kit in C using SDL3, currently targeting macOS. The sample app currently includes three pages:
 
 - `todo` (`todo_page`): the primary sample application showing realistic widget composition and interactions.
 - `corners` (`corners_page`): a resize/anchor validation page with eight edge/corner anchored buttons.
+- `showcase` (`showcase_page`): a full widget showcase page that demonstrates every built-in UI element on one screen.
 
 ## Current UI
 
@@ -32,6 +33,7 @@ The codebase is split into:
 - `main.c` is composition/root wiring only: parse startup flags, select a page by id, create window/renderer, initialize `ui_runtime`, create the active page, and run the main loop.
 - `todo_page` is the sample TODO app and owns todo-specific model state plus screen-level UI composition.
 - `corners_page` is a lightweight anchor test screen used to verify corner/edge placement during resize.
+- `showcase_page` is a one-screen widget gallery used to validate and demo all built-in controls.
 - `ui_runtime` is the lifecycle owner + dispatcher for all elements.
 - `ui_element` is the common base interface for polymorphism in C.
 
@@ -82,6 +84,7 @@ Key files:
 
 - `include/pages/app_page.h`: generic page-ops interface plus build-generated page table declarations.
 - `include/pages/corners_page.h`, `src/pages/corners_page.c`: resize-anchor test page with eight edge/corner-aligned buttons.
+- `include/pages/showcase_page.h`, `src/pages/showcase_page.c`: all-widgets demo page with interactive controls inside a scrollable layout.
 - `include/pages/todo_page.h`, `src/pages/todo_page.c`: todo page public lifecycle API + private page logic (task state, callbacks, and widget composition).
 - `CMakeLists.txt` (page discovery): scans `src/pages/*_page.c` and generates `build/generated/page_index.c`, which exports `app_pages[]` for runtime page selection.
 - `include/ui/ui_element.h`, `src/ui/ui_element.c`: base type, virtual ops contract, and shared border helpers.
@@ -193,7 +196,7 @@ Potential future enhancements (still under consideration):
 5. **Data-driven UI description (markup/DSL)** — UI is currently composed in C only. A simple declarative format (for example JSON/TOML/custom DSL) plus loader/binder would make screen iteration and reuse faster.
 6. **Animation system with easing curves** — There is no built-in tween/animation layer yet. Adding time-based transitions (position, size, color, opacity) with reusable easing curves would improve interaction quality.
 7. **Broader automated test coverage** — CTest currently runs a focused hierarchy test binary. Wider coverage is still needed for widget behavior, focus/input routing, layout/resize regressions, and integration-level page scenarios.
-8. **Sample-page use of all core widgets** — `ui_image` and `ui_slider` are implemented but not yet integrated into the TODO sample page, so there is no end-to-end in-app demonstration of those controls.
+8. **Sample-page parity with TODO workflow coverage** — all core widgets are now demonstrated on the `showcase` page, but TODO-specific end-to-end scenarios (task-focused flows with richer widget combinations) can still be expanded.
 
 ## Configure and Build:
 ```
@@ -279,6 +282,12 @@ Corners anchor test page:
 ./build/cui --page corners
 ```
 
+Showcase page:
+
+```
+./build/cui --page showcase
+```
+
 Show command-line help:
 
 ```
@@ -295,6 +304,10 @@ make run RUN_ARGS="--page todo --width 800 --height 600"
 
 ```bash
 make run ARGS="--page corners --width 1000 --height 700"
+```
+
+```bash
+make run ARGS="--page showcase --width 1100 --height 760"
 ```
 
 ## Screenshot Capture (macOS)

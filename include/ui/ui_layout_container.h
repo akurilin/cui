@@ -34,6 +34,7 @@ typedef struct ui_layout_container
     ui_element **children;
     size_t child_count;
     size_t child_capacity;
+    ui_element *focused_child;
 } ui_layout_container;
 
 /*

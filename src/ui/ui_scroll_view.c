@@ -62,6 +62,30 @@ static void position_child(ui_scroll_view *scroll)
     scroll->child->rect.w = scroll->base.rect.w;
 }
 
+static bool can_focus_scroll_view(const ui_element *element)
+{
+    const ui_scroll_view *scroll = (const ui_scroll_view *)element;
+    if (scroll == NULL || scroll->child == NULL || scroll->child->ops == NULL ||
+        !scroll->child->enabled || scroll->child->ops->can_focus == NULL)
+    {
+        return false;
+    }
+
+    return scroll->child->ops->can_focus(scroll->child);
+}
+
+static void set_scroll_view_focus(ui_element *element, bool focused)
+{
+    ui_scroll_view *scroll = (ui_scroll_view *)element;
+    if (scroll == NULL || scroll->child == NULL || scroll->child->ops == NULL ||
+        scroll->child->ops->set_focus == NULL)
+    {
+        return;
+    }
+
+    scroll->child->ops->set_focus(scroll->child, focused);
+}
+
 static bool handle_scroll_view_event(ui_element *element, const SDL_Event *event)
 {
     ui_scroll_view *scroll = (ui_scroll_view *)element;
@@ -186,6 +210,8 @@ static void destroy_scroll_view(ui_element *element)
 
 static const ui_element_ops SCROLL_VIEW_OPS = {
     .handle_event = handle_scroll_view_event,
+    .can_focus = can_focus_scroll_view,
+    .set_focus = set_scroll_view_focus,
     .update = update_scroll_view,
     .render = render_scroll_view,
     .destroy = destroy_scroll_view,

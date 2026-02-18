@@ -11,6 +11,114 @@ static bool is_valid_element(const ui_element *element)
     return element != NULL && element->ops != NULL;
 }
 
+static bool is_focusable_element(const ui_element *element)
+{
+    return is_valid_element(element) && element->enabled && element->ops->can_focus != NULL &&
+           element->ops->can_focus(element);
+}
+
+static bool is_pointer_press_event(const SDL_Event *event)
+{
+    return event != NULL && event->type == SDL_EVENT_MOUSE_BUTTON_DOWN &&
+           event->button.button == SDL_BUTTON_LEFT;
+}
+
+static bool get_pointer_position(const SDL_Event *event, SDL_FPoint *out)
+{
+    if (event == NULL || out == NULL)
+    {
+        return false;
+    }
+
+    if (event->type == SDL_EVENT_MOUSE_BUTTON_DOWN || event->type == SDL_EVENT_MOUSE_BUTTON_UP)
+    {
+        out->x = event->button.x;
+        out->y = event->button.y;
+        return true;
+    }
+
+    if (event->type == SDL_EVENT_MOUSE_MOTION)
+    {
+        out->x = event->motion.x;
+        out->y = event->motion.y;
+        return true;
+    }
+
+    if (event->type == SDL_EVENT_MOUSE_WHEEL)
+    {
+        out->x = event->wheel.mouse_x;
+        out->y = event->wheel.mouse_y;
+        return true;
+    }
+
+    return false;
+}
+
+static bool hit_test_element(const ui_element *element, const SDL_FPoint *point)
+{
+    if (!is_valid_element(element) || point == NULL || !element->visible)
+    {
+        return false;
+    }
+
+    if (element->ops->hit_test != NULL)
+    {
+        return element->ops->hit_test(element, point);
+    }
+
+    return ui_element_hit_test(element, point);
+}
+
+static void set_focused_child(ui_layout_container *container, ui_element *child)
+{
+    if (container == NULL || container->focused_child == child)
+    {
+        return;
+    }
+
+    if (is_valid_element(container->focused_child) &&
+        container->focused_child->ops->set_focus != NULL)
+    {
+        container->focused_child->ops->set_focus(container->focused_child, false);
+    }
+
+    container->focused_child = NULL;
+
+    if (is_focusable_element(child))
+    {
+        container->focused_child = child;
+        if (child->ops->set_focus != NULL)
+        {
+            child->ops->set_focus(child, true);
+        }
+    }
+}
+
+static ui_element *find_top_focusable_child_at(const ui_layout_container *container,
+                                               const SDL_FPoint *point)
+{
+    if (container == NULL || point == NULL)
+    {
+        return NULL;
+    }
+
+    for (size_t i = container->child_count; i > 0U; --i)
+    {
+        ui_element *child = container->children[i - 1U];
+        if (!is_focusable_element(child))
+        {
+            continue;
+        }
+
+        if (hit_test_element(child, point))
+        {
+            return child;
+        }
+    }
+
+    return NULL;
+}
+
 static bool would_create_parent_cycle(const ui_element *child, const ui_element *new_parent)
 {
     if (child == NULL || new_parent == NULL)
@@ -109,6 +217,15 @@ static bool handle_layout_container_event(ui_element *element, const SDL_Event *
     ui_layout_container *container = (ui_layout_container *)element;
     layout_children(container);
 
+    if (is_pointer_press_event(event))
+    {
+        SDL_FPoint point = {0.0F, 0.0F};
+        if (get_pointer_position(event, &point))
+        {
+            set_focused_child(container, find_top_focusable_child_at(container, &point));
+        }
+    }
+
     for (size_t i = container->child_count; i > 0U; --i)
     {
         ui_element *child = container->children[i - 1U];
@@ -123,6 +240,36 @@ static bool handle_layout_container_event(ui_element *element, const SDL_Event *
     }
 
     return false;
+}
+
+static bool can_focus_layout_container(const ui_element *element)
+{
+    const ui_layout_container *container = (const ui_layout_container *)element;
+    if (container == NULL)
+    {
+        return false;
+    }
+
+    for (size_t i = 0; i < container->child_count; ++i)
+    {
+        if (is_focusable_element(container->children[i]))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static void set_layout_container_focus(ui_element *element, bool focused)
+{
+    ui_layout_container *container = (ui_layout_container *)element;
+    if (container == NULL || focused)
+    {
+        return;
+    }
+
+    set_focused_child(container, NULL);
 }
 
 static void update_layout_container(ui_element *element, float delta_seconds)
@@ -186,6 +333,8 @@ static void destroy_layout_container(ui_element *element)
 
 static const ui_element_ops LAYOUT_CONTAINER_OPS = {
     .handle_event = handle_layout_container_event,
+    .can_focus = can_focus_layout_container,
+    .set_focus = set_layout_container_focus,
     .update = update_layout_container,
     .render = render_layout_container,
     .destroy = destroy_layout_container,
@@ -217,6 +366,7 @@ ui_layout_container *ui_layout_container_create(const SDL_FRect *rect, ui_layout
     container->children = NULL;
     container->child_count = 0;
     container->child_capacity = 0;
+    container->focused_child = NULL;
 
     return container;
 }
@@ -278,6 +428,11 @@ bool ui_layout_container_remove_child(ui_layout_container *container, ui_element
         else
         {
             child->parent = NULL;
+        }
+
+        if (container->focused_child == child)
+        {
+            container->focused_child = NULL;
         }
 
         for (size_t j = i; j + 1U < container->child_count; ++j)
