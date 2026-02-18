@@ -114,19 +114,22 @@ Per frame, `main.c` drives the UI system in this order:
 
 ## Roadmap
 
-Key capabilities the UI kit is currently missing, roughly ordered by impact:
+This project intentionally stays minimal. The following capabilities are explicitly out of scope:
 
-1. **Real text rendering** — All widgets use `SDL_RenderDebugText` (fixed 8x8 monospace glyphs). Proper font loading (TTF/OTF via SDL_ttf or stb_truetype) would unlock variable font sizes, weights, styles, and accurate text measurement for layout.
-2. **Keyboard navigation and focus traversal** — Focus/capture routing is centralized in `ui_context`, but tab ordering, arrow-key traversal, and explicit focus ring rendering are still missing.
-3. **Styling and theming** — Colors, padding, and spacing are hardcoded per-widget at construction time. A shared theme or style struct that widgets inherit from would allow reskinning the entire UI from one place.
-4. **Tree-aware propagation and overlay layers** — Event routing is now hit-tested with focus/capture, but dispatch remains top-level list based. Adding explicit parent/child target paths, bubble/capture phases, and overlay layers would enable robust modals, dropdowns, tooltips, and context menus.
-5. **Richer layout primitives** — Layout is currently limited to vertical/horizontal stacking with fixed 8 px padding/spacing. Proportional/weighted sizing, min/max constraints, grid layout, alignment control, and configurable spacing would handle more complex layouts.
-6. **Dropdown/select control** — A segmented control exists today, but a true dropdown/select widget (button + popup list + overlay/z-order handling + outside-click dismissal) is still missing.
-7. **Constraint-style responsive layout** — Anchors and stack stretching are implemented, but full responsive constraints (min/max sizing rules, percentage/fill policies, and window-relative pin/stretch behavior across arbitrary element trees) are not.
-8. **Data-driven UI description (markup/DSL)** — UI is currently composed in C only. A simple declarative format (for example JSON/TOML/custom DSL) plus loader/binder would make screen iteration and reuse faster.
-9. **Animation system with easing curves** — There is no built-in tween/animation layer yet. Adding time-based transitions (position, size, color, opacity) with reusable easing curves would improve interaction quality.
-10. **Broader automated test coverage** — CTest currently runs a focused hierarchy test binary. Wider coverage is still needed for widget behavior, focus/input routing, layout/resize regressions, and integration-level page scenarios.
-11. **Sample-page use of all core widgets** — `ui_image` and `ui_slider` are implemented but not yet integrated into the TODO sample page, so there is no end-to-end in-app demonstration of those controls.
+1. **Real text rendering** — Widgets currently use `SDL_RenderDebugText` (fixed 8x8 monospace glyphs), and we do not plan to add full font loading/rendering systems.
+2. **Keyboard navigation and focus traversal** — Focus/capture routing exists in `ui_context`, but tab ordering, arrow-key traversal, and focus ring rendering are not planned.
+3. **Styling and theming** — Widget colors/padding/spacing remain construction-time values; a shared theme/style inheritance system is not planned.
+
+Potential future enhancements (still under consideration):
+
+1. **Tree-aware propagation and overlay layers** — Event routing is hit-tested with focus/capture today, but explicit parent/child target paths, bubble/capture phases, and overlay layers could improve modals, dropdowns, tooltips, and context menus.
+2. **Richer layout primitives** — Layout is currently vertical/horizontal stacking with fixed 8 px padding/spacing. Proportional/weighted sizing, min/max constraints, grid layout, alignment control, and configurable spacing may be added later.
+3. **Dropdown/select control** — A segmented control exists today, but a true dropdown/select widget (button + popup list + overlay/z-order handling + outside-click dismissal) is still missing.
+4. **Constraint-style responsive layout** — Anchors and stack stretching are implemented, but full responsive constraints (min/max sizing rules, percentage/fill policies, and window-relative pin/stretch behavior across arbitrary element trees) are not.
+5. **Data-driven UI description (markup/DSL)** — UI is currently composed in C only. A simple declarative format (for example JSON/TOML/custom DSL) plus loader/binder would make screen iteration and reuse faster.
+6. **Animation system with easing curves** — There is no built-in tween/animation layer yet. Adding time-based transitions (position, size, color, opacity) with reusable easing curves would improve interaction quality.
+7. **Broader automated test coverage** — CTest currently runs a focused hierarchy test binary. Wider coverage is still needed for widget behavior, focus/input routing, layout/resize regressions, and integration-level page scenarios.
+8. **Sample-page use of all core widgets** — `ui_image` and `ui_slider` are implemented but not yet integrated into the TODO sample page, so there is no end-to-end in-app demonstration of those controls.
 
 ## Configure and Build:
 ```
