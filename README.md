@@ -62,7 +62,7 @@ The UI uses a **top-down width, bottom-up height** convention:
 - **Width flows down**: parent elements push widths onto children by writing `child->rect.w`. A `ui_scroll_view` sets the `ui_layout_container`'s `x`/`w`, and the container in turn sets each child's `x`/`w`.
 - **Height flows up**: children own their heights (`rect.h` is set at creation or during update). Parents read `child->rect.h` to position subsequent children and to auto-size their own `rect.h` to fit content.
 
-`ui_layout_container` supports both **vertical** and **horizontal** stacking. In vertical mode, children are positioned top-to-bottom and the container stretches each child's width to fill; in horizontal mode, children are positioned left-to-right and the container stretches each child's height. Layout uses fixed 8 px padding and 8 px inter-child spacing.
+`ui_layout_container` supports both **vertical** and **horizontal** stacking. In vertical mode, children are positioned top-to-bottom and the container stretches each child's width to fill; in horizontal mode, children are positioned left-to-right and the container stretches each child's height. For horizontal rows, right-aligned children keep `rect.x` as a right-edge inset instead of participating in left-flow x placement. Layout uses fixed 8 px padding and 8 px inter-child spacing.
 
 Layout is **single-pass and imperative** — there are no separate measure/arrange phases. The container runs its layout pass on every `handle_event` and `update` call so that size changes propagate within the same frame. This keeps the implementation small and easy to follow.
 
@@ -234,6 +234,32 @@ on your generator/configuration, run one of:
 ./build/Debug/cui
 ./build/Release/cui
 ./build/cui
+```
+
+Optional startup window size:
+
+```
+./build/cui <width> <height>
+```
+
+Example:
+
+```
+./build/cui 800 600
+```
+
+## Screenshot Capture (macOS)
+
+Use the helper script to launch the app, wait for startup, and capture the app window:
+
+```bash
+scripts/capture_app_window.sh ./build/cui assets/screenshots/example.png
+```
+
+Pass app arguments (for example startup width/height) after `--`:
+
+```bash
+scripts/capture_app_window.sh ./build/cui assets/screenshots/example-800x600.png 2 -- 800 600
 ```
 
 ## Submodule workflow

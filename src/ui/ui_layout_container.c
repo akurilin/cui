@@ -88,10 +88,18 @@ static void layout_children(ui_layout_container *container)
         }
 
         const float child_width = clamp_non_negative(child->rect.w);
-        child->rect.x = cursor_x;
         child->rect.y = padding;
         child->rect.w = child_width;
         child->rect.h = inner_h;
+
+        if (child->align_h == UI_ALIGN_RIGHT)
+        {
+            // Preserve right-anchor inset. screen_rect resolves x from parent
+            // width when align_h is UI_ALIGN_RIGHT.
+            continue;
+        }
+
+        child->rect.x = cursor_x;
         cursor_x += child_width + spacing;
     }
 }

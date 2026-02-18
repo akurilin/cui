@@ -23,3 +23,7 @@
 - Keep commits focused on one logical change.
 - Use imperative, concise commit subjects.
 - If changes are unrelated, split them into separate commits.
+
+## UI Change Validation
+- After any UI-related code change, verify the visual result at the end of the task.
+- Run `scripts/capture_app_window.sh` to capture the app window, then compare the captured image against the expected UI outcome before finishing.

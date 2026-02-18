@@ -48,6 +48,8 @@ typedef struct ui_layout_container
  * - Layout uses fixed internal defaults (padding=8px, spacing=8px).
  * - Vertical axis: children keep rect.h and are stretched to inner width.
  * - Horizontal axis: children keep rect.w and are stretched to inner height.
+ *   Left/center-aligned children are placed left-to-right by flow order.
+ *   Right-aligned children preserve rect.x as right-edge inset.
  * - Children may overflow the container bounds; clipping/scrolling is not
  *   performed in this version.
  *

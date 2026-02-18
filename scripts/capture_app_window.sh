@@ -2,14 +2,28 @@
 
 set -euo pipefail
 
-if [[ $# -lt 2 || $# -gt 3 ]]; then
-    echo "Usage: $0 <binary_path> <output_png_path> [startup_seconds]" >&2
+if [[ $# -lt 2 ]]; then
+    echo "Usage: $0 <binary_path> <output_png_path> [startup_seconds] [-- app_args...]" >&2
     exit 1
 fi
 
 BINARY_PATH="$1"
 OUTPUT_PATH="$2"
 STARTUP_SECONDS="${3:-2}"
+APP_ARGS=()
+
+if [[ $# -ge 4 ]]; then
+    if [[ "$4" == "--" ]]; then
+        if [[ $# -ge 5 ]]; then
+            APP_ARGS=("${@:5}")
+        fi
+    elif [[ $# -eq 3 ]]; then
+        :
+    else
+        echo "Usage: $0 <binary_path> <output_png_path> [startup_seconds] [-- app_args...]" >&2
+        exit 1
+    fi
+fi
 
 if [[ ! -x "$BINARY_PATH" ]]; then
     echo "Binary is not executable: $BINARY_PATH" >&2
@@ -22,7 +36,7 @@ mkdir -p "$OUTPUT_DIR"
 PROCESS_NAME="$(basename "$BINARY_PATH")"
 LOG_PATH="$OUTPUT_DIR/${PROCESS_NAME}.capture.log"
 
-"$BINARY_PATH" >"$LOG_PATH" 2>&1 &
+"$BINARY_PATH" "${APP_ARGS[@]}" >"$LOG_PATH" 2>&1 &
 APP_PID=$!
 
 cleanup()

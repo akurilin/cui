@@ -5,6 +5,13 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+static bool are_close(float a, float b)
+{
+    const float epsilon = 0.001F;
+    const float diff = a > b ? (a - b) : (b - a);
+    return diff <= epsilon;
+}
+
 static bool test_add_child_rejects_self_cycle(void)
 {
     ui_layout_container *container = ui_layout_container_create(
@@ -112,6 +119,45 @@ static bool test_scroll_view_create_rejects_parented_child(void)
     return true;
 }
 
+static bool test_horizontal_layout_preserves_right_anchor_inset(void)
+{
+    ui_layout_container *container = ui_layout_container_create(
+        &(SDL_FRect){0.0F, 0.0F, 200.0F, 40.0F}, UI_LAYOUT_AXIS_HORIZONTAL, NULL);
+    ui_pane *left =
+        ui_pane_create(&(SDL_FRect){0.0F, 0.0F, 50.0F, 20.0F}, (SDL_Color){20, 20, 20, 255}, NULL);
+    ui_pane *right =
+        ui_pane_create(&(SDL_FRect){12.0F, 0.0F, 30.0F, 20.0F}, (SDL_Color){40, 40, 40, 255}, NULL);
+
+    if (container == NULL || left == NULL || right == NULL)
+    {
+        return false;
+    }
+
+    right->base.align_h = UI_ALIGN_RIGHT;
+
+    if (!ui_layout_container_add_child(container, &left->base))
+    {
+        return false;
+    }
+    if (!ui_layout_container_add_child(container, &right->base))
+    {
+        return false;
+    }
+
+    container->base.ops->update((ui_element *)container, 0.0F);
+    const SDL_FRect right_before = ui_element_screen_rect(&right->base);
+
+    container->base.rect.w = 260.0F;
+    container->base.ops->update((ui_element *)container, 0.0F);
+    const SDL_FRect right_after = ui_element_screen_rect(&right->base);
+
+    const bool ok = are_close(right_before.x, 158.0F) && are_close(right_after.x, 218.0F) &&
+                    are_close(right->base.rect.x, 12.0F);
+
+    container->base.ops->destroy((ui_element *)container);
+    return ok;
+}
+
 int main(void)
 {
     struct test_case
@@ -126,6 +172,8 @@ int main(void)
         {"add_child rejects reparenting", test_add_child_rejects_reparenting},
         {"scroll_view rejects already parented child",
          test_scroll_view_create_rejects_parented_child},
+        {"horizontal layout preserves right anchor inset",
+         test_horizontal_layout_preserves_right_anchor_inset},
     };
 
     size_t passed = 0U;

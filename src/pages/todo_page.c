@@ -99,6 +99,9 @@ static const float COL_TITLE_W = 620.0F;
 static const float COL_TIME_W = 72.0F;
 static const float COL_DELETE_W = 96.0F;
 static const float COL_DELETE_H = 24.0F;
+// Preserved from legacy 1024px-wide row geometry.
+static const float COL_TIME_RIGHT_OFFSET = 124.0F;
+static const float COL_DELETE_RIGHT_OFFSET = 20.0F;
 
 static const float HEADER_RIGHT_W = 272.0F;
 static const float ICON_CELL_W = 56.0F;
@@ -425,6 +428,8 @@ static bool add_task_row(todo_page *page, size_t index)
         return false;
     }
     time_text->base.rect.w = COL_TIME_W;
+    time_text->base.align_h = UI_ALIGN_RIGHT;
+    time_text->base.rect.x = COL_TIME_RIGHT_OFFSET;
     if (!add_child_or_fail(row, (ui_element *)time_text))
     {
         destroy_element((ui_element *)row);
@@ -439,6 +444,8 @@ static bool add_task_row(todo_page *page, size_t index)
         destroy_element((ui_element *)row);
         return false;
     }
+    remove->base.align_h = UI_ALIGN_RIGHT;
+    remove->base.rect.x = COL_DELETE_RIGHT_OFFSET;
     if (!add_child_or_fail(row, (ui_element *)remove))
     {
         destroy_element((ui_element *)row);
@@ -790,7 +797,7 @@ static void relayout_page(todo_page *page)
     page->bottom_rule->base.rect.w = content_width;
     page->bottom_rule->base.rect.y = footer_rule_y;
 
-    // Task list containers stretch; leaf elements inside stay fixed.
+    // Task list containers stretch; row internals are laid out by containers.
     page->list_frame->base.rect.w = content_width;
     page->list_frame->base.rect.h = task_list_height;
     page->scroll_view->base.rect.w = content_width;
