@@ -38,6 +38,34 @@ static void update_text(ui_element *element, float delta_seconds)
     (void)delta_seconds;
 }
 
+static void measure_text(ui_element *element, const SDL_FRect *available_rect)
+{
+    (void)available_rect;
+
+    ui_text *text = (ui_text *)element;
+    if (text == NULL || text->content == NULL)
+    {
+        return;
+    }
+
+    const float intrinsic_width = (float)strlen(text->content) * DEBUG_GLYPH_WIDTH;
+    if (text->base.rect.w < intrinsic_width)
+    {
+        text->base.rect.w = intrinsic_width;
+    }
+    text->base.rect.h = DEBUG_GLYPH_HEIGHT;
+}
+
+static void arrange_text(ui_element *element, const SDL_FRect *final_rect)
+{
+    if (element == NULL || final_rect == NULL)
+    {
+        return;
+    }
+
+    element->rect = *final_rect;
+}
+
 static void render_text(const ui_element *element, SDL_Renderer *renderer)
 {
     const ui_text *text = (const ui_text *)element;
@@ -75,6 +103,8 @@ static void destroy_text(ui_element *element)
 }
 
 static const ui_element_ops TEXT_OPS = {
+    .measure = measure_text,
+    .arrange = arrange_text,
     .handle_event = handle_text_event,
     .update = update_text,
     .render = render_text,

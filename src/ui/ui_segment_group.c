@@ -102,6 +102,55 @@ static void update_segment_group(ui_element *element, float delta_seconds)
     (void)delta_seconds;
 }
 
+static void measure_segment_group(ui_element *element, const SDL_FRect *available_rect)
+{
+    (void)available_rect;
+
+    ui_segment_group *group = (ui_segment_group *)element;
+    if (group == NULL || group->labels == NULL || group->segment_count == 0U)
+    {
+        return;
+    }
+
+    float max_label_width = 0.0F;
+    for (size_t i = 0; i < group->segment_count; ++i)
+    {
+        const char *label = group->labels[i];
+        if (label == NULL)
+        {
+            continue;
+        }
+
+        const float width = (float)strlen(label) * DEBUG_GLYPH_WIDTH;
+        if (width > max_label_width)
+        {
+            max_label_width = width;
+        }
+    }
+
+    const float min_segment_width = max_label_width + 24.0F;
+    const float intrinsic_width = min_segment_width * (float)group->segment_count;
+    const float intrinsic_height = DEBUG_GLYPH_HEIGHT + 20.0F;
+    if (group->base.rect.w < intrinsic_width)
+    {
+        group->base.rect.w = intrinsic_width;
+    }
+    if (group->base.rect.h < intrinsic_height)
+    {
+        group->base.rect.h = intrinsic_height;
+    }
+}
+
+static void arrange_segment_group(ui_element *element, const SDL_FRect *final_rect)
+{
+    if (element == NULL || final_rect == NULL)
+    {
+        return;
+    }
+
+    element->rect = *final_rect;
+}
+
 static void render_segment_group(const ui_element *element, SDL_Renderer *renderer)
 {
     const ui_segment_group *group = (const ui_segment_group *)element;
@@ -161,6 +210,8 @@ static void render_segment_group(const ui_element *element, SDL_Renderer *render
 static void destroy_segment_group(ui_element *element) { free(element); }
 
 static const ui_element_ops SEGMENT_GROUP_OPS = {
+    .measure = measure_segment_group,
+    .arrange = arrange_segment_group,
     .handle_event = handle_segment_group_event,
     .update = update_segment_group,
     .render = render_segment_group,

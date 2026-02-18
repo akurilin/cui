@@ -7,16 +7,21 @@
 static const float DEBUG_GLYPH_WIDTH = 8.0F;
 static const float DEBUG_GLYPH_HEIGHT = 8.0F;
 
-static void update_fps_label(ui_fps_counter *counter)
+static void format_fps_label(ui_fps_counter *counter)
 {
     snprintf(counter->label, sizeof(counter->label), "FPS: %.1f", counter->displayed_fps);
+}
 
-    const float label_width = (float)strlen(counter->label) * DEBUG_GLYPH_WIDTH;
-    counter->base.rect.w = label_width;
-    counter->base.rect.h = DEBUG_GLYPH_HEIGHT;
+static void update_counter_layout(ui_fps_counter *counter)
+{
+    if (counter == NULL)
+    {
+        return;
+    }
 
     if (counter->base.parent == NULL)
     {
+        const float label_width = (float)strlen(counter->label) * DEBUG_GLYPH_WIDTH;
         counter->base.rect.x = (float)counter->viewport_width - counter->padding - label_width;
         counter->base.rect.y =
             (float)counter->viewport_height - counter->padding - DEBUG_GLYPH_HEIGHT;
@@ -25,6 +30,35 @@ static void update_fps_label(ui_fps_counter *counter)
     {
         counter->base.rect.x = counter->padding;
         counter->base.rect.y = counter->padding;
+    }
+}
+
+static void measure_fps_counter(ui_element *element, const SDL_FRect *available_rect)
+{
+    (void)available_rect;
+
+    ui_fps_counter *counter = (ui_fps_counter *)element;
+    if (counter == NULL)
+    {
+        return;
+    }
+
+    counter->base.rect.w = (float)strlen(counter->label) * DEBUG_GLYPH_WIDTH;
+    counter->base.rect.h = DEBUG_GLYPH_HEIGHT;
+    update_counter_layout(counter);
+}
+
+static void arrange_fps_counter(ui_element *element, const SDL_FRect *final_rect)
+{
+    ui_fps_counter *counter = (ui_fps_counter *)element;
+    if (counter == NULL)
+    {
+        return;
+    }
+
+    if (final_rect != NULL)
+    {
+        counter->base.rect = *final_rect;
     }
 }
 
@@ -50,7 +84,8 @@ static void update_fps_counter(ui_element *element, float delta_seconds)
         counter->frame_count = 0;
     }
 
-    update_fps_label(counter);
+    format_fps_label(counter);
+    measure_fps_counter(element, &counter->base.rect);
 }
 
 static void render_fps_counter(const ui_element *element, SDL_Renderer *renderer)
@@ -71,6 +106,8 @@ static void render_fps_counter(const ui_element *element, SDL_Renderer *renderer
 static void destroy_fps_counter(ui_element *element) { free(element); }
 
 static const ui_element_ops FPS_COUNTER_OPS = {
+    .measure = measure_fps_counter,
+    .arrange = arrange_fps_counter,
     .handle_event = handle_fps_counter_event,
     .update = update_fps_counter,
     .render = render_fps_counter,
@@ -108,8 +145,8 @@ ui_fps_counter *ui_fps_counter_create(int viewport_width, int viewport_height, f
     counter->frame_count = 0;
     counter->displayed_fps = 0.0F;
     counter->padding = padding;
-    snprintf(counter->label, sizeof(counter->label), "FPS: %.1f", counter->displayed_fps);
-    update_fps_label(counter);
+    format_fps_label(counter);
+    measure_fps_counter(&counter->base, &counter->base.rect);
 
     return counter;
 }

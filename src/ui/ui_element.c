@@ -2,6 +2,37 @@
 
 #include <stddef.h>
 
+void ui_element_measure(ui_element *element, const SDL_FRect *available_rect)
+{
+    (void)available_rect;
+
+    if (element == NULL || element->ops == NULL)
+    {
+        return;
+    }
+
+    if (element->ops->measure != NULL)
+    {
+        element->ops->measure(element, available_rect);
+    }
+}
+
+void ui_element_arrange(ui_element *element, const SDL_FRect *final_rect)
+{
+    if (element == NULL || element->ops == NULL || final_rect == NULL)
+    {
+        return;
+    }
+
+    if (element->ops->arrange != NULL)
+    {
+        element->ops->arrange(element, final_rect);
+        return;
+    }
+
+    element->rect = *final_rect;
+}
+
 void ui_element_set_border(ui_element *element, const SDL_Color *border_color, float width)
 {
     if (element == NULL)

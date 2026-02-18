@@ -62,6 +62,46 @@ static void position_child(ui_scroll_view *scroll)
     scroll->child->rect.w = scroll->base.rect.w;
 }
 
+static void measure_scroll_view(ui_element *element, const SDL_FRect *available_rect)
+{
+    ui_scroll_view *scroll = (ui_scroll_view *)element;
+
+    if (scroll == NULL || scroll->child == NULL || scroll->child->ops == NULL)
+    {
+        return;
+    }
+
+    if (available_rect != NULL)
+    {
+        if (available_rect->w > 0.0F)
+        {
+            scroll->base.rect.w = available_rect->w;
+        }
+        if (available_rect->h > 0.0F)
+        {
+            scroll->base.rect.h = available_rect->h;
+        }
+    }
+
+    const SDL_FRect child_available = {0.0F, 0.0F, scroll->base.rect.w, scroll->base.rect.h};
+    ui_element_measure(scroll->child, &child_available);
+}
+
+static void arrange_scroll_view(ui_element *element, const SDL_FRect *final_rect)
+{
+    ui_scroll_view *scroll = (ui_scroll_view *)element;
+
+    if (scroll == NULL || scroll->child == NULL || scroll->child->ops == NULL || final_rect == NULL)
+    {
+        return;
+    }
+
+    scroll->base.rect = *final_rect;
+    const SDL_FRect child_final = {0.0F, -scroll->scroll_offset_y, scroll->base.rect.w,
+                                   scroll->child->rect.h};
+    ui_element_arrange(scroll->child, &child_final);
+}
+
 static bool can_focus_scroll_view(const ui_element *element)
 {
     const ui_scroll_view *scroll = (const ui_scroll_view *)element;
@@ -94,8 +134,6 @@ static bool handle_scroll_view_event(ui_element *element, const SDL_Event *event
     {
         return false;
     }
-
-    position_child(scroll);
 
     // Gate mouse events to the viewport area.
     if (is_mouse_event(event))
@@ -145,8 +183,6 @@ static void update_scroll_view(ui_element *element, float delta_seconds)
     {
         return;
     }
-
-    position_child(scroll);
 
     if (scroll->child->enabled && scroll->child->ops->update != NULL)
     {
@@ -209,6 +245,8 @@ static void destroy_scroll_view(ui_element *element)
 }
 
 static const ui_element_ops SCROLL_VIEW_OPS = {
+    .measure = measure_scroll_view,
+    .arrange = arrange_scroll_view,
     .handle_event = handle_scroll_view_event,
     .can_focus = can_focus_scroll_view,
     .set_focus = set_scroll_view_focus,

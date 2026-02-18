@@ -15,6 +15,34 @@ static void update_hrule(ui_element *element, float delta_seconds)
     (void)delta_seconds;
 }
 
+static void measure_hrule(ui_element *element, const SDL_FRect *available_rect)
+{
+    ui_hrule *rule = (ui_hrule *)element;
+    if (rule == NULL)
+    {
+        return;
+    }
+
+    if (available_rect != NULL && available_rect->w > 0.0F)
+    {
+        rule->base.rect.w = available_rect->w;
+    }
+    if (rule->base.rect.h < 1.0F)
+    {
+        rule->base.rect.h = 1.0F;
+    }
+}
+
+static void arrange_hrule(ui_element *element, const SDL_FRect *final_rect)
+{
+    if (element == NULL || final_rect == NULL)
+    {
+        return;
+    }
+
+    element->rect = *final_rect;
+}
+
 static void render_hrule(const ui_element *element, SDL_Renderer *renderer)
 {
     const ui_hrule *rule = (const ui_hrule *)element;
@@ -35,6 +63,8 @@ static void render_hrule(const ui_element *element, SDL_Renderer *renderer)
 static void destroy_hrule(ui_element *element) { free(element); }
 
 static const ui_element_ops HRULE_OPS = {
+    .measure = measure_hrule,
+    .arrange = arrange_hrule,
     .handle_event = handle_hrule_event,
     .update = update_hrule,
     .render = render_hrule,

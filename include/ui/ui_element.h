@@ -51,6 +51,29 @@ typedef enum ui_align_v
 typedef struct ui_element_ops
 {
     /*
+     * Compute this element's desired local size for a given available rect.
+     *
+     * Contract:
+     * - `available_rect` is in the parent's local coordinates.
+     * - Implementations typically update element->rect.w / element->rect.h.
+     * - Position (x/y) should not be finalized here.
+     *
+     * When NULL, ui_element_measure() keeps the current rect size.
+     */
+    void (*measure)(ui_element *element, const SDL_FRect *available_rect);
+
+    /*
+     * Assign this element's final local rectangle for the current frame.
+     *
+     * Contract:
+     * - `final_rect` is in the parent's local coordinates.
+     * - Implementations should write element->rect as needed.
+     *
+     * When NULL, ui_element_arrange() copies `final_rect` into element->rect.
+     */
+    void (*arrange)(ui_element *element, const SDL_FRect *final_rect);
+
+    /*
      * Process one SDL event for this element.
      * Called only when the element is enabled.
      *
@@ -168,5 +191,23 @@ SDL_FRect ui_element_screen_rect(const ui_element *element);
  * element bounds.
  */
 bool ui_element_hit_test(const ui_element *element, const SDL_FPoint *point);
+
+/*
+ * Run one element's measure pass.
+ *
+ * Behavior:
+ * - Dispatches to ops->measure when provided.
+ * - Otherwise keeps current rect size (fixed-size default).
+ */
+void ui_element_measure(ui_element *element, const SDL_FRect *available_rect);
+
+/*
+ * Run one element's arrange pass.
+ *
+ * Behavior:
+ * - Dispatches to ops->arrange when provided.
+ * - Otherwise copies final_rect into element->rect.
+ */
+void ui_element_arrange(ui_element *element, const SDL_FRect *final_rect);
 
 #endif

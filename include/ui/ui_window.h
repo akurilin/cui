@@ -3,16 +3,22 @@
 
 #include "ui/ui_element.h"
 
+#include <stddef.h>
+
 /*
- * Root window element used as a parent anchor for top-level UI controls.
+ * Root window element used as the page's top-level UI tree node.
  *
- * This element intentionally renders nothing and handles no input. It exists
- * to provide a stable parent rect so child elements can use relative anchoring
- * (for example, bottom-right HUD elements).
+ * The window owns child elements and forwards measure/arrange/event/update/render
+ * traversal to them.
  */
 typedef struct ui_window
 {
     ui_element base;
+    ui_element **children;
+    size_t child_count;
+    size_t child_capacity;
+    ui_element *focused_child;
+    ui_element *captured_child;
 } ui_window;
 
 /*
@@ -28,7 +34,8 @@ typedef struct ui_window
  *
  * Ownership/Lifecycle:
  * - Caller owns the returned pointer until transferred to ui_runtime.
- * - Destroying the element releases only the element itself.
+ * - Destroying the window also destroys every child added through
+ *   ui_window_add_child.
  */
 ui_window *ui_window_create(const SDL_FRect *rect);
 
@@ -45,5 +52,26 @@ ui_window *ui_window_create(const SDL_FRect *rect);
  * - false when arguments are invalid.
  */
 bool ui_window_set_size(ui_window *window, float width, float height);
+
+/*
+ * Add one child element to the window root.
+ *
+ * On success, ownership transfers to the window. The child must be unparented.
+ */
+bool ui_window_add_child(ui_window *window, ui_element *child);
+
+/*
+ * Remove one child from the window root.
+ *
+ * When destroy_child is true, the removed child is destroyed.
+ */
+bool ui_window_remove_child(ui_window *window, ui_element *child, bool destroy_child);
+
+/*
+ * Remove all children from the window root.
+ *
+ * When destroy_children is true, each child is destroyed.
+ */
+void ui_window_clear_children(ui_window *window, bool destroy_children);
 
 #endif

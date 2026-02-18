@@ -71,6 +71,35 @@ static void update_checkbox(ui_element *element, float delta_seconds)
     (void)delta_seconds;
 }
 
+static void measure_checkbox(ui_element *element, const SDL_FRect *available_rect)
+{
+    (void)available_rect;
+
+    ui_checkbox *checkbox = (ui_checkbox *)element;
+    if (checkbox == NULL || checkbox->label == NULL)
+    {
+        return;
+    }
+
+    const float label_width = (float)strlen(checkbox->label) * DEBUG_CHAR_W;
+    const float intrinsic_width = BOX_SIZE + LABEL_GAP + label_width;
+    if (checkbox->base.rect.w < intrinsic_width)
+    {
+        checkbox->base.rect.w = intrinsic_width;
+    }
+    checkbox->base.rect.h = BOX_SIZE;
+}
+
+static void arrange_checkbox(ui_element *element, const SDL_FRect *final_rect)
+{
+    if (element == NULL || final_rect == NULL)
+    {
+        return;
+    }
+
+    element->rect = *final_rect;
+}
+
 static void render_checkbox(const ui_element *element, SDL_Renderer *renderer)
 {
     const ui_checkbox *checkbox = (const ui_checkbox *)element;
@@ -111,6 +140,8 @@ static void render_checkbox(const ui_element *element, SDL_Renderer *renderer)
 static void destroy_checkbox(ui_element *element) { free(element); }
 
 static const ui_element_ops CHECKBOX_OPS = {
+    .measure = measure_checkbox,
+    .arrange = arrange_checkbox,
     .handle_event = handle_checkbox_event,
     .update = update_checkbox,
     .render = render_checkbox,
