@@ -17,13 +17,47 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIGURATION>")
 add_subdirectory(vendored/SDL EXCLUDE_FROM_ALL)
 add_subdirectory(vendored/SDL_image EXCLUDE_FROM_ALL)
 
-# Create your game executable target as usual
-# Define an executable target named "cui"; WIN32 changes subsystem behavior on Windows only.
-add_executable(
-    cui
-    WIN32
+file(GLOB PAGE_SOURCE_FILES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/pages/*_page.c")
+list(SORT PAGE_SOURCE_FILES)
+if(NOT PAGE_SOURCE_FILES)
+    message(FATAL_ERROR "No page sources found in src/pages/*.c matching *_page.c.")
+endif()
+
+set(PAGE_INDEX_FILE "${CMAKE_BINARY_DIR}/generated/page_index.c")
+set(PAGE_INDEX_CONTENT "#include \"pages/app_page.h\"\n\n")
+set(PAGE_DESCRIPTOR_REFERENCES)
+
+foreach(PAGE_SOURCE_FILE IN LISTS PAGE_SOURCE_FILES)
+    get_filename_component(PAGE_SOURCE_NAME "${PAGE_SOURCE_FILE}" NAME_WE)
+    string(REGEX MATCH "^(.+)_page$" PAGE_ID_MATCH "${PAGE_SOURCE_NAME}")
+    if(NOT PAGE_ID_MATCH)
+        message(FATAL_ERROR "Page source does not follow <id>_page.c naming: ${PAGE_SOURCE_FILE}")
+    endif()
+
+    string(REGEX REPLACE "_page$" "" PAGE_ID "${PAGE_SOURCE_NAME}")
+    set(PAGE_DESCRIPTOR_SYMBOL "${PAGE_ID}_page_ops")
+    string(APPEND PAGE_INDEX_CONTENT
+           "extern const app_page_ops ${PAGE_DESCRIPTOR_SYMBOL};\n")
+    list(APPEND PAGE_DESCRIPTOR_REFERENCES
+         "    { \"${PAGE_ID}\", &${PAGE_DESCRIPTOR_SYMBOL} }")
+endforeach()
+
+string(APPEND PAGE_INDEX_CONTENT "\nconst app_page_entry app_pages[] = {\n")
+foreach(PAGE_DESCRIPTOR_REFERENCE IN LISTS PAGE_DESCRIPTOR_REFERENCES)
+    string(APPEND PAGE_INDEX_CONTENT "${PAGE_DESCRIPTOR_REFERENCE},\n")
+endforeach()
+string(
+    APPEND
+    PAGE_INDEX_CONTENT
+    "};\n\nconst size_t app_page_count = sizeof(app_pages) / sizeof(app_pages[0]);\n")
+
+file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/generated")
+file(WRITE "${PAGE_INDEX_FILE}" "${PAGE_INDEX_CONTENT}")
+
+set(APP_SOURCES
     main.c
-    src/pages/todo_page.c
+    ${PAGE_SOURCE_FILES}
+    ${PAGE_INDEX_FILE}
     src/ui/ui_button.c
     src/ui/ui_checkbox.c
     src/system/ui_runtime.c
@@ -39,8 +73,14 @@ add_executable(
     src/ui/ui_text.c
     src/ui/ui_text_input.c
     src/ui/ui_window.c
-    src/util/string_util.c
-)
+    src/util/string_util.c)
+
+# Create your game executable target as usual
+# Define an executable target named "cui"; WIN32 changes subsystem behavior on Windows only.
+add_executable(
+    cui
+    WIN32
+    ${APP_SOURCES})
 
 target_include_directories(cui PRIVATE include)
 

@@ -17,6 +17,9 @@ endif
 CLANG_FORMAT := $(LLVM_BIN)/clang-format
 CLANG_TIDY := $(LLVM_BIN)/clang-tidy
 SCAN_BUILD := $(LLVM_BIN)/scan-build
+RUN_ARGS ?=
+ARGS ?=
+EFFECTIVE_RUN_ARGS := $(strip $(if $(RUN_ARGS),$(RUN_ARGS),$(ARGS)))
 
 check-tools:
 	@for tool in "$(CLANG_FORMAT)" "$(CLANG_TIDY)" "$(SCAN_BUILD)"; do \
@@ -38,11 +41,11 @@ test: build
 
 run: build
 	@if [ -x ./build/Debug/cui ]; then \
-		./build/Debug/cui; \
+		./build/Debug/cui $(EFFECTIVE_RUN_ARGS); \
 	elif [ -x ./build/Release/cui ]; then \
-		./build/Release/cui; \
+		./build/Release/cui $(EFFECTIVE_RUN_ARGS); \
 	elif [ -x ./build/cui ]; then \
-		./build/cui; \
+		./build/cui $(EFFECTIVE_RUN_ARGS); \
 	else \
 		echo "Could not find executable: cui"; \
 		echo "Expected one of: ./build/Debug/cui, ./build/Release/cui, ./build/cui"; \

@@ -1062,6 +1062,34 @@ bool todo_page_update(todo_page *page)
     return ui_text_set_content(page->datetime_text, header_datetime);
 }
 
+static void *create_todo_page_instance(SDL_Window *window, ui_runtime *context, int viewport_width,
+                                       int viewport_height)
+{
+    return (void *)todo_page_create(window, context, viewport_width, viewport_height);
+}
+
+static bool resize_todo_page_instance(void *page_instance, int viewport_width, int viewport_height)
+{
+    return todo_page_resize((todo_page *)page_instance, viewport_width, viewport_height);
+}
+
+static bool update_todo_page_instance(void *page_instance)
+{
+    return todo_page_update((todo_page *)page_instance);
+}
+
+static void destroy_todo_page_instance(void *page_instance)
+{
+    todo_page_destroy((todo_page *)page_instance);
+}
+
+const app_page_ops todo_page_ops = {
+    .create = create_todo_page_instance,
+    .resize = resize_todo_page_instance,
+    .update = update_todo_page_instance,
+    .destroy = destroy_todo_page_instance,
+};
+
 void todo_page_destroy(todo_page *page)
 {
     if (page == NULL)

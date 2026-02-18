@@ -1,6 +1,6 @@
 #include <SDL3/SDL.h>
 
-#include "pages/todo_page.h"
+#include "pages/app_page.h"
 #include "system/ui_runtime.h"
 
 #include <errno.h>
@@ -13,12 +13,19 @@ static const int DEFAULT_WINDOW_WIDTH = 1024;
 static const int DEFAULT_WINDOW_HEIGHT = 768;
 static const int MIN_WINDOW_WIDTH = 640;
 static const int MIN_WINDOW_HEIGHT = 480;
+static const char *DEFAULT_PAGE_ID = "todo";
 
 typedef struct window_size
 {
     int width;
     int height;
 } window_size;
+
+typedef struct startup_options
+{
+    window_size size;
+    const char *page_id;
+} startup_options;
 
 static bool parse_positive_int(const char *value, int *out)
 {
@@ -45,16 +52,59 @@ static bool parse_positive_int(const char *value, int *out)
 
 static void log_usage(const char *program_name)
 {
-    SDL_Log("Usage: %s [-w|--width <width>] [-h|--height <height>] [--help]", program_name);
+    SDL_Log("Usage: %s [--page <id>] [-w|--width <width>] [-h|--height <height>] [--help]",
+            program_name);
+}
+
+static void log_available_pages(void)
+{
+    if (app_page_count == 0U)
+    {
+        SDL_Log("Pages: (none)");
+        return;
+    }
+
+    SDL_Log("Pages:");
+    for (size_t i = 0U; i < app_page_count; ++i)
+    {
+        if (app_pages[i].id != NULL)
+        {
+            SDL_Log("  %s", app_pages[i].id);
+        }
+    }
 }
 
 static void log_help(const char *program_name)
 {
     log_usage(program_name);
     SDL_Log("Options:");
+    SDL_Log("      --page <id>        Select page to load (default: %s).", DEFAULT_PAGE_ID);
     SDL_Log("  -w, --width <width>    Set startup window width in pixels.");
     SDL_Log("  -h, --height <height>  Set startup window height in pixels.");
     SDL_Log("      --help             Show this help message.");
+    log_available_pages();
+}
+
+static const app_page_entry *find_page_descriptor_by_id(const char *page_id)
+{
+    if (page_id == NULL)
+    {
+        return NULL;
+    }
+
+    for (size_t i = 0U; i < app_page_count; ++i)
+    {
+        if (app_pages[i].id == NULL)
+        {
+            continue;
+        }
+        if (strcmp(app_pages[i].id, page_id) == 0)
+        {
+            return &app_pages[i];
+        }
+    }
+
+    return NULL;
 }
 
 typedef enum parse_result
@@ -64,9 +114,9 @@ typedef enum parse_result
     PARSE_RESULT_ERROR
 } parse_result;
 
-static parse_result parse_window_options(int argc, char **argv, window_size *size)
+static parse_result parse_startup_options(int argc, char **argv, startup_options *options)
 {
-    if (size == NULL)
+    if (options == NULL)
     {
         return PARSE_RESULT_ERROR;
     }
@@ -75,13 +125,26 @@ static parse_result parse_window_options(int argc, char **argv, window_size *siz
     {
         const char *option = argv[i];
         int *target = NULL;
+
+        if (strcmp(option, "--page") == 0)
+        {
+            if (i + 1 >= argc)
+            {
+                SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Missing value for option: %s", option);
+                log_usage(argv[0]);
+                return PARSE_RESULT_ERROR;
+            }
+            options->page_id = argv[++i];
+            continue;
+        }
+
         if (strcmp(option, "-w") == 0 || strcmp(option, "--width") == 0)
         {
-            target = &size->width;
+            target = &options->size.width;
         }
         else if (strcmp(option, "-h") == 0 || strcmp(option, "--height") == 0)
         {
-            target = &size->height;
+            target = &options->size.height;
         }
         else if (strcmp(option, "--help") == 0)
         {
@@ -121,19 +184,34 @@ static parse_result parse_window_options(int argc, char **argv, window_size *siz
  * `main.c` is intentionally narrow in scope:
  * - own SDL startup/shutdown
  * - own top-level frame orchestration
- * - delegate page-specific behavior to page modules (currently `todo_page`)
+ * - delegate page-specific behavior through the page descriptor interface
  */
 int main(int argc, char **argv)
 {
-    window_size startup_size = {DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT};
+    startup_options options = {
+        .size = {DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT},
+        .page_id = DEFAULT_PAGE_ID,
+    };
 
-    const parse_result parse_args_result = parse_window_options(argc, argv, &startup_size);
+    const parse_result parse_args_result = parse_startup_options(argc, argv, &options);
     if (parse_args_result == PARSE_RESULT_HELP)
     {
         return 0;
     }
     if (parse_args_result == PARSE_RESULT_ERROR)
     {
+        return 1;
+    }
+
+    const app_page_entry *selected_page = find_page_descriptor_by_id(options.page_id);
+    if (selected_page == NULL || selected_page->ops == NULL || selected_page->ops->create == NULL ||
+        selected_page->ops->resize == NULL || selected_page->ops->update == NULL ||
+        selected_page->ops->destroy == NULL)
+    {
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Unknown or invalid page id: %s",
+                     options.page_id);
+        log_usage(argv[0]);
+        log_available_pages();
         return 1;
     }
 
@@ -146,8 +224,8 @@ int main(int argc, char **argv)
 
     // Create the main high-density-aware, resizable application window.
     SDL_Window *window =
-        SDL_CreateWindow("CUI - a minimalist UI framework in C and SDL3", startup_size.width,
-                         startup_size.height, SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_RESIZABLE);
+        SDL_CreateWindow("CUI - a minimalist UI framework in C and SDL3", options.size.width,
+                         options.size.height, SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WINDOW_RESIZABLE);
     if (window == NULL)
     {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "SDL_CreateWindow failed: %s", SDL_GetError());
@@ -172,7 +250,7 @@ int main(int argc, char **argv)
 
     // Map the render coordinate space to the logical window size so layout
     // code works in points (not physical pixels) on high-DPI displays.
-    SDL_SetRenderLogicalPresentation(renderer, startup_size.width, startup_size.height,
+    SDL_SetRenderLogicalPresentation(renderer, options.size.width, options.size.height,
                                      SDL_LOGICAL_PRESENTATION_LETTERBOX);
 
     const SDL_Color color_bg = {241, 241, 238, 255};
@@ -188,11 +266,12 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    // Build and register the active page.
-    todo_page *page = todo_page_create(window, &context, startup_size.width, startup_size.height);
-    if (page == NULL)
+    // Build and register the selected page.
+    void *page_instance =
+        selected_page->ops->create(window, &context, options.size.width, options.size.height);
+    if (page_instance == NULL)
     {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create todo page");
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create page: %s", selected_page->id);
         ui_runtime_destroy(&context);
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
@@ -225,15 +304,21 @@ int main(int argc, char **argv)
                 const int new_h = event.window.data2;
                 SDL_SetRenderLogicalPresentation(renderer, new_w, new_h,
                                                  SDL_LOGICAL_PRESENTATION_LETTERBOX);
-                todo_page_resize(page, new_w, new_h);
+                if (!selected_page->ops->resize(page_instance, new_w, new_h))
+                {
+                    SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to resize page: %s",
+                                 selected_page->id);
+                    running = false;
+                }
             }
             ui_runtime_handle_event(&context, &event);
         }
 
         // Phase 2: page-specific per-frame logic (outside widget vtables).
-        if (!todo_page_update(page))
+        if (!selected_page->ops->update(page_instance))
         {
-            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to update todo page");
+            SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to update page: %s",
+                         selected_page->id);
             running = false;
         }
 
@@ -248,7 +333,7 @@ int main(int argc, char **argv)
     }
 
     // Teardown order: page -> context -> renderer/window -> SDL runtime.
-    todo_page_destroy(page);
+    selected_page->ops->destroy(page_instance);
     ui_runtime_destroy(&context);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);

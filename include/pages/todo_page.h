@@ -3,6 +3,7 @@
 
 #include <SDL3/SDL.h>
 
+#include "pages/app_page.h"
 #include "system/ui_runtime.h"
 
 /*
@@ -108,5 +109,22 @@ bool todo_page_update(todo_page *page);
  * - This function does not destroy the `ui_runtime` itself.
  */
 void todo_page_destroy(todo_page *page);
+
+/*
+ * Todo page lifecycle callbacks exported for build-generated page discovery.
+ *
+ * Purpose:
+ * - Expose TODO page lifecycle callbacks through the generic app-page
+ *   interface used by command-line page selection.
+ *
+ * Behavior/contract:
+ * - Lifecycle callbacks forward to `todo_page_create`, `todo_page_resize`,
+ *   `todo_page_update`, and `todo_page_destroy`.
+ * - Page id is derived by CMake from `todo_page.c` filename.
+ *
+ * Ownership/lifecycle:
+ * - Descriptor storage is static and immutable.
+ */
+extern const app_page_ops todo_page_ops;
 
 #endif

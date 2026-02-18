@@ -22,7 +22,7 @@ The codebase is split into:
 - a UI system/runtime layer (`include/system`, `src/system`) for orchestration and dispatch,
 - an example app layer (`include/pages`, `src/pages`) hosted by a small application shell (`main.c`).
 
-- `main.c` is composition/root wiring only: create window/renderer, initialize `ui_runtime`, create the active page, and run the main loop.
+- `main.c` is composition/root wiring only: parse startup flags, select a page by id, create window/renderer, initialize `ui_runtime`, create the active page, and run the main loop.
 - `todo_page` is the sample TODO app and owns todo-specific model state plus screen-level UI composition.
 - `ui_runtime` is the lifecycle owner + dispatcher for all elements.
 - `ui_element` is the common base interface for polymorphism in C.
@@ -72,7 +72,10 @@ Children track a **parent pointer and alignment anchors** for relative positioni
 
 Key files:
 
+- `include/pages/app_page.h`: generic page descriptor/lifecycle interface plus build-generated page table declarations.
+- `include/pages/corners_page.h`, `src/pages/corners_page.c`: resize-anchor test page with eight edge/corner-aligned buttons.
 - `include/pages/todo_page.h`, `src/pages/todo_page.c`: todo page public lifecycle API + private page logic (task state, callbacks, and widget composition).
+- `CMakeLists.txt` (page discovery): scans `src/pages/*_page.c` and generates `build/generated/page_index.c`, which exports `app_pages[]` for runtime page selection.
 - `include/ui/ui_element.h`, `src/ui/ui_element.c`: base type, virtual ops contract, and shared border helpers.
 - `include/system/ui_runtime.h`, `src/system/ui_runtime.c`: dynamic element list, ownership, event/update/render dispatch.
 - `include/ui/ui_pane.h`, `src/ui/ui_pane.c`: rectangle fill + border visual group element.
@@ -94,7 +97,7 @@ Key files:
 Per frame, `main.c` drives the UI system in this order:
 
 1. Poll SDL events and forward each to `ui_runtime_handle_event`.
-2. Call `todo_page_update()` for page-level per-frame work (for example, header clock refresh).
+2. Call selected page `update()` for page-level per-frame work (for example, header clock refresh in `todo_page`).
 3. Call `ui_runtime_update(delta_seconds)`.
 4. Clear renderer and call `ui_runtime_render(renderer)`.
 5. Present frame.
@@ -115,7 +118,7 @@ These are two distinct flows in the current system.
 
 #### 1) First launch: how elements get their initial size/position
 
-1. `main.c` initializes SDL + window + renderer, initializes `ui_runtime`, then calls `todo_page_create(window, &context, width, height)`.
+1. `main.c` parses startup options (`--page`, `--width`, `--height`), resolves the page descriptor from build-generated `app_pages[]`, initializes SDL + window + renderer, initializes `ui_runtime`, then calls selected page `create(window, &context, width, height)`.
 2. `todo_page_create` stores viewport dimensions and computes top-level geometry (content width, header widths, list height, footer positions).
 3. Most top-level widgets are created with explicit rects derived from those computed values (header, input row, rules, list frame, footer, etc.).
 4. The task list body is built as:
@@ -137,8 +140,8 @@ In short: initial geometry is seeded by page code, then refined every frame by c
 1. SDL emits `SDL_EVENT_WINDOW_RESIZED`.
 2. `main.c` handles it by:
    - updating renderer logical presentation to the new logical size,
-   - calling `todo_page_resize(page, new_w, new_h)`.
-3. `todo_page_resize` updates page viewport fields and calls `relayout_page`.
+   - calling selected page `resize(page_instance, new_w, new_h)`.
+3. `todo_page_resize` (for the TODO page implementation) updates page viewport fields and calls `relayout_page`.
 4. `relayout_page` recomputes and writes top-level rects:
    - stretches/shifts header panes,
    - right-anchors add/filter controls,
@@ -186,7 +189,7 @@ cmake --build build
 ```
 make build    # configure + build
 make test     # build + run CTest suite
-make run      # build + run build/Debug/cui, build/Release/cui, or build/cui
+make run      # build + run build/Debug/cui, build/Release/cui, or build/cui (use RUN_ARGS/ARGS for app flags)
 make clean    # remove build directory
 make format   # apply clang-format to non-vendored .c/.h files
 make lint     # run clang-tidy checks
@@ -242,10 +245,22 @@ Optional startup window size:
 ./build/cui --width <width> --height <height>
 ```
 
+Optional startup page id (`<id>` is derived from `src/pages/<id>_page.c`):
+
+```
+./build/cui --page <id>
+```
+
 Example:
 
 ```
-./build/cui -w 800 -h 600
+./build/cui --page todo -w 800 -h 600
+```
+
+Corners anchor test page:
+
+```
+./build/cui --page corners
 ```
 
 Show command-line help:
@@ -254,18 +269,24 @@ Show command-line help:
 ./build/cui --help
 ```
 
+Pass app args through `make run`:
+
+```bash
+make run RUN_ARGS="--page todo --width 800 --height 600"
+```
+
 ## Screenshot Capture (macOS)
 
 Use the helper script to launch the app, wait for startup, and capture the app window:
 
 ```bash
-scripts/capture_app_window.sh ./build/cui assets/screenshots/example.png
+scripts/capture_app_window.sh ./build/cui /tmp/cui-example.png
 ```
 
 Pass app arguments (for example startup width/height) after `--`:
 
 ```bash
-scripts/capture_app_window.sh ./build/cui assets/screenshots/example-800x600.png 2 -- --width 800 --height 600
+scripts/capture_app_window.sh ./build/cui /tmp/cui-example-800x600.png 2 -- --page todo --width 800 --height 600
 ```
 
 ## Submodule workflow
