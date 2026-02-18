@@ -2,6 +2,7 @@
 
 #include "pages/app_page.h"
 #include "system/ui_runtime.h"
+#include "util/fail_fast.h"
 
 #include <errno.h>
 #include <limits.h>
@@ -67,10 +68,11 @@ static void log_available_pages(void)
     SDL_Log("Pages:");
     for (size_t i = 0U; i < app_page_count; ++i)
     {
-        if (app_pages[i].id != NULL)
+        if (app_pages[i].id == NULL)
         {
-            SDL_Log("  %s", app_pages[i].id);
+            fail_fast("page index contains NULL id at index %zu", i);
         }
+        SDL_Log("  %s", app_pages[i].id);
     }
 }
 
@@ -89,14 +91,14 @@ static const app_page_entry *find_page_descriptor_by_id(const char *page_id)
 {
     if (page_id == NULL)
     {
-        return NULL;
+        fail_fast("find_page_descriptor_by_id called with NULL page_id");
     }
 
     for (size_t i = 0U; i < app_page_count; ++i)
     {
         if (app_pages[i].id == NULL)
         {
-            continue;
+            fail_fast("page index contains NULL id at index %zu", i);
         }
         if (strcmp(app_pages[i].id, page_id) == 0)
         {
@@ -118,7 +120,7 @@ static parse_result parse_startup_options(int argc, char **argv, startup_options
 {
     if (options == NULL)
     {
-        return PARSE_RESULT_ERROR;
+        fail_fast("parse_startup_options called with NULL options");
     }
 
     for (int i = 1; i < argc; i++)

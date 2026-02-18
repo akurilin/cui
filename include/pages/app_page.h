@@ -17,10 +17,12 @@
  *
  * Behavior/contract:
  * - Implementations must return a non-NULL page instance from `create` on
- *   success and NULL on failure.
- * - `resize` and `update` return true on success and false on failure.
- * - `destroy` must accept NULL and release all resources owned by the page
- *   instance when non-NULL.
+ *   success.
+ * - Implementations are expected to fail fast for unrecoverable internal
+ *   failures instead of returning recoverable errors.
+ * - `resize` and `update` return true on success.
+ * - `destroy` requires a non-NULL page instance and releases all owned
+ *   resources.
  */
 typedef struct app_page_ops
 {
@@ -35,7 +37,6 @@ typedef struct app_page_ops
      *
      * Return value:
      * - Opaque page instance on success.
-     * - NULL on failure.
      */
     void *(*create)(SDL_Window *window, ui_runtime *context, int viewport_width,
                     int viewport_height);
@@ -50,7 +51,6 @@ typedef struct app_page_ops
      *
      * Return value:
      * - true on success.
-     * - false on failure.
      */
     bool (*resize)(void *page_instance, int viewport_width, int viewport_height);
 
@@ -62,7 +62,6 @@ typedef struct app_page_ops
      *
      * Return value:
      * - true on success.
-     * - false on failure.
      */
     bool (*update)(void *page_instance);
 
@@ -70,7 +69,7 @@ typedef struct app_page_ops
      * Destroy page instance and release all owned resources.
      *
      * Parameters:
-     * - `page_instance`: page created by `create`; NULL allowed.
+     * - `page_instance`: non-NULL page instance created by `create`.
      */
     void (*destroy)(void *page_instance);
 } app_page_ops;

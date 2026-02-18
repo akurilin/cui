@@ -25,8 +25,8 @@ typedef struct todo_page todo_page;
  * Behavior/contract:
  * - On success, returns a valid `todo_page *` whose elements are owned by
  *   `context` until removed.
- * - On failure, all partially registered page elements are rolled back and
- *   destroyed, and this function returns NULL.
+ * - On unrecoverable internal failure (allocation/creation/registration),
+ *   the page logs a critical error and aborts the process (fail-fast policy).
  *
  * Parameters:
  * - `window`: SDL window used by controls that require an owning window
@@ -40,7 +40,6 @@ typedef struct todo_page todo_page;
  *
  * Return value:
  * - Non-NULL page handle on success.
- * - NULL on allocation/creation/registration failure.
  *
  * Ownership/lifecycle:
  * - Caller owns the returned `todo_page *` and must release it with
@@ -65,7 +64,7 @@ todo_page *todo_page_create(SDL_Window *window, ui_runtime *context, int viewpor
  *
  * Return value:
  * - true on success.
- * - false if `page` is NULL or row rebuild fails.
+ * - This function follows fail-fast semantics for invalid state.
  *
  * Ownership/lifecycle:
  * - Does not transfer ownership. Safe to call on every resize event.
@@ -85,7 +84,7 @@ bool todo_page_resize(todo_page *page, int viewport_width, int viewport_height);
  *
  * Return value:
  * - true when update succeeds or no work is required.
- * - false if required UI state could not be updated.
+ * - This function follows fail-fast semantics for invalid state.
  *
  * Ownership/lifecycle:
  * - Does not transfer ownership.
@@ -102,7 +101,7 @@ bool todo_page_update(todo_page *page);
  * - Free the page object itself.
  *
  * Parameters:
- * - `page`: page instance to destroy; NULL is allowed.
+ * - `page`: page instance to destroy; must be non-NULL.
  *
  * Ownership/lifecycle:
  * - After this call, `page` is invalid and must not be reused.

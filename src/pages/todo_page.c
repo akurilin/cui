@@ -11,6 +11,7 @@
 #include "ui/ui_text.h"
 #include "ui/ui_text_input.h"
 #include "ui/ui_window.h"
+#include "util/fail_fast.h"
 #include "util/string_util.h"
 
 #include <ctype.h>
@@ -114,41 +115,26 @@ static const float FILTER_H = 40.0F;
 static const char *TODO_FILTER_LABELS[] = {"ALL", "ACTIVE", "DONE"};
 
 /*
- * Invoke an element's destructor callback when present.
- */
-static void destroy_element(ui_element *element)
-{
-    if (element != NULL && element->ops != NULL && element->ops->destroy != NULL)
-    {
-        element->ops->destroy(element);
-    }
-}
-
-/*
  * Register one page-owned element into the UI context and track it for teardown.
  */
-static bool register_element(todo_page *page, ui_element *element)
+static void register_element(todo_page *page, ui_element *element)
 {
     if (page == NULL || page->context == NULL || element == NULL)
     {
-        return false;
+        fail_fast("todo_page: invalid register_element input");
     }
 
     if (!ui_runtime_add(page->context, element))
     {
-        // If registration fails, ownership never transfers to ui_runtime.
-        destroy_element(element);
-        return false;
+        fail_fast("todo_page: ui_runtime_add failed during registration");
     }
 
     if (page->registered_count >= SDL_arraysize(page->registered_elements))
     {
-        (void)ui_runtime_remove(page->context, element, true);
-        return false;
+        fail_fast("todo_page: registered element tracker capacity exceeded");
     }
 
     page->registered_elements[page->registered_count++] = element;
-    return true;
 }
 
 /*
@@ -158,7 +144,7 @@ static void unregister_elements(todo_page *page)
 {
     if (page == NULL || page->context == NULL)
     {
-        return;
+        fail_fast("todo_page: invalid state in unregister_elements");
     }
 
     for (size_t i = page->registered_count; i > 0U; --i)
@@ -171,26 +157,29 @@ static void unregister_elements(todo_page *page)
 }
 
 /*
- * Add a child to a layout container, destroying the child on failure.
+ * Add a child to a layout container.
  */
-static bool add_child_or_fail(ui_layout_container *container, ui_element *child)
+static void add_child_or_fail(ui_layout_container *container, ui_element *child)
 {
+    if (container == NULL || child == NULL)
+    {
+        fail_fast("todo_page: invalid child add input");
+    }
+
     if (!ui_layout_container_add_child(container, child))
     {
-        destroy_element(child);
-        return false;
+        fail_fast("todo_page: ui_layout_container_add_child failed");
     }
-    return true;
 }
 
 /*
  * Recompute and refresh the "active/done/remaining" summary labels.
  */
-static bool update_task_summary(todo_page *page)
+static void update_task_summary(todo_page *page)
 {
     if (page == NULL || page->stats_text == NULL || page->remaining_text == NULL)
     {
-        return false;
+        fail_fast("todo_page: summary update called with invalid state");
     }
 
     size_t done_count = 0U;
@@ -212,17 +201,15 @@ static bool update_task_summary(todo_page *page)
 
     if (!ui_text_set_content(page->stats_text, stats_buffer))
     {
-        return false;
+        fail_fast("todo_page: failed to update stats summary text");
     }
     if (!ui_text_set_content(page->remaining_text, remaining_buffer))
     {
-        return false;
+        fail_fast("todo_page: failed to update remaining summary text");
     }
-
-    return true;
 }
 
-static bool rebuild_task_rows(todo_page *page);
+static void rebuild_task_rows(todo_page *page);
 
 /*
  * Compute the usable content width from viewport width and horizontal margins.
@@ -239,7 +226,7 @@ static bool does_task_match_filter(const todo_page *page, const todo_task *task)
 {
     if (page == NULL || task == NULL)
     {
-        return false;
+        fail_fast("todo_page: invalid state in does_task_match_filter");
     }
 
     switch (page->selected_filter_index)
@@ -257,11 +244,11 @@ static bool does_task_match_filter(const todo_page *page, const todo_task *task)
 /*
  * Ensure per-row callback context storage can index every task entry.
  */
-static bool ensure_row_context_capacity(todo_page *page)
+static void ensure_row_context_capacity(todo_page *page)
 {
     if (page == NULL)
     {
-        return false;
+        fail_fast("todo_page: NULL page in ensure_row_context_capacity");
     }
 
     if (page->task_count == 0U)
@@ -269,12 +256,12 @@ static bool ensure_row_context_capacity(todo_page *page)
         free(page->row_contexts);
         page->row_contexts = NULL;
         page->row_context_capacity = 0U;
-        return true;
+        return;
     }
 
     if (page->row_context_capacity >= page->task_count)
     {
-        return true;
+        return;
     }
 
     // Context slots are indexed by task index, so capacity follows task_count.
@@ -283,22 +270,21 @@ static bool ensure_row_context_capacity(todo_page *page)
         realloc((void *)page->row_contexts, new_capacity * sizeof(task_row_context));
     if (new_contexts == NULL)
     {
-        return false;
+        fail_fast("todo_page: failed to grow row contexts");
     }
 
     page->row_contexts = new_contexts;
     page->row_context_capacity = new_capacity;
-    return true;
 }
 
 /*
  * Delete a task by index and rebuild visible rows afterward.
  */
-static bool delete_task_at_index(todo_page *page, size_t index)
+static void delete_task_at_index(todo_page *page, size_t index)
 {
     if (page == NULL || index >= page->task_count)
     {
-        return false;
+        fail_fast("todo_page: invalid delete index");
     }
 
     free(page->tasks[index].title);
@@ -310,7 +296,7 @@ static bool delete_task_at_index(todo_page *page, size_t index)
     }
     page->task_count--;
 
-    return rebuild_task_rows(page);
+    rebuild_task_rows(page);
 }
 
 /*
@@ -321,14 +307,10 @@ static void handle_delete_button_click(void *context)
     task_row_context *row_ctx = (task_row_context *)context;
     if (row_ctx == NULL || row_ctx->page == NULL)
     {
-        return;
+        fail_fast("todo_page: delete callback context is invalid");
     }
 
-    if (!delete_task_at_index(row_ctx->page, row_ctx->task_index))
-    {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to delete task at index %zu",
-                     row_ctx->task_index);
-    }
+    delete_task_at_index(row_ctx->page, row_ctx->task_index);
 }
 
 /*
@@ -339,30 +321,27 @@ static void handle_task_checkbox_change(bool checked, void *context)
     task_row_context *row_ctx = (task_row_context *)context;
     if (row_ctx == NULL || row_ctx->page == NULL)
     {
-        return;
+        fail_fast("todo_page: checkbox callback context is invalid");
     }
 
     todo_page *page = row_ctx->page;
     if (row_ctx->task_index >= page->task_count)
     {
-        return;
+        fail_fast("todo_page: checkbox callback received out-of-range task index");
     }
 
     page->tasks[row_ctx->task_index].is_done = checked;
-    if (!rebuild_task_rows(page))
-    {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to rebuild rows after toggle");
-    }
+    rebuild_task_rows(page);
 }
 
 /*
  * Build one horizontal UI row for the task at the provided model index.
  */
-static bool add_task_row(todo_page *page, size_t index)
+static void add_task_row(todo_page *page, size_t index)
 {
     if (page == NULL || page->rows_container == NULL || index >= page->task_count)
     {
-        return false;
+        fail_fast("todo_page: invalid add_task_row input");
     }
 
     const todo_task *task = &page->tasks[index];
@@ -373,7 +352,7 @@ static bool add_task_row(todo_page *page, size_t index)
         &(SDL_FRect){0.0F, 0.0F, 0.0F, ROW_HEIGHT}, UI_LAYOUT_AXIS_HORIZONTAL, &page->color_ink);
     if (row == NULL)
     {
-        return false;
+        fail_fast("todo_page: failed to create task row container");
     }
 
     task_row_context *row_ctx = &page->row_contexts[index];
@@ -383,96 +362,62 @@ static bool add_task_row(todo_page *page, size_t index)
     ui_text *number = ui_text_create(0.0F, 0.0F, row_number, page->color_muted, NULL);
     if (number == NULL)
     {
-        destroy_element((ui_element *)row);
-        return false;
+        fail_fast("todo_page: failed to create task number text");
     }
     number->base.rect.w = COL_NUMBER_W;
-    if (!add_child_or_fail(row, (ui_element *)number))
-    {
-        destroy_element((ui_element *)row);
-        return false;
-    }
+    add_child_or_fail(row, (ui_element *)number);
 
     ui_checkbox *check =
         ui_checkbox_create(0.0F, 0.0F, "", page->color_ink, page->color_ink, page->color_ink,
                            task->is_done, handle_task_checkbox_change, row_ctx, NULL);
     if (check == NULL)
     {
-        destroy_element((ui_element *)row);
-        return false;
+        fail_fast("todo_page: failed to create task checkbox");
     }
     check->base.rect.w = COL_CHECK_W;
-    if (!add_child_or_fail(row, (ui_element *)check))
-    {
-        destroy_element((ui_element *)row);
-        return false;
-    }
+    add_child_or_fail(row, (ui_element *)check);
 
     ui_text *task_text = ui_text_create(0.0F, 0.0F, task->title, page->color_ink, NULL);
     if (task_text == NULL)
     {
-        destroy_element((ui_element *)row);
-        return false;
+        fail_fast("todo_page: failed to create task title text");
     }
     task_text->base.rect.w = COL_TITLE_W;
-    if (!add_child_or_fail(row, (ui_element *)task_text))
-    {
-        destroy_element((ui_element *)row);
-        return false;
-    }
+    add_child_or_fail(row, (ui_element *)task_text);
 
     ui_text *time_text = ui_text_create(0.0F, 0.0F, task->due_time, page->color_muted, NULL);
     if (time_text == NULL)
     {
-        destroy_element((ui_element *)row);
-        return false;
+        fail_fast("todo_page: failed to create task due-time text");
     }
     time_text->base.rect.w = COL_TIME_W;
     time_text->base.align_h = UI_ALIGN_RIGHT;
     time_text->base.rect.x = COL_TIME_RIGHT_OFFSET;
-    if (!add_child_or_fail(row, (ui_element *)time_text))
-    {
-        destroy_element((ui_element *)row);
-        return false;
-    }
+    add_child_or_fail(row, (ui_element *)time_text);
 
     ui_button *remove = ui_button_create(&(SDL_FRect){0.0F, 0.0F, COL_DELETE_W, COL_DELETE_H},
                                          page->color_ink, page->color_button_down, "DELETE",
                                          &page->color_ink, handle_delete_button_click, row_ctx);
     if (remove == NULL)
     {
-        destroy_element((ui_element *)row);
-        return false;
+        fail_fast("todo_page: failed to create delete button");
     }
     remove->base.align_h = UI_ALIGN_RIGHT;
     remove->base.rect.x = COL_DELETE_RIGHT_OFFSET;
-    if (!add_child_or_fail(row, (ui_element *)remove))
-    {
-        destroy_element((ui_element *)row);
-        return false;
-    }
-
-    if (!add_child_or_fail(page->rows_container, (ui_element *)row))
-    {
-        return false;
-    }
-
-    return true;
+    add_child_or_fail(row, (ui_element *)remove);
+    add_child_or_fail(page->rows_container, (ui_element *)row);
 }
 
 /*
  * Rebuild the entire task-row container from current model/filter state.
  */
-static bool rebuild_task_rows(todo_page *page)
+static void rebuild_task_rows(todo_page *page)
 {
     if (page == NULL || page->rows_container == NULL)
     {
-        return false;
+        fail_fast("todo_page: invalid state in rebuild_task_rows");
     }
-    if (!ensure_row_context_capacity(page))
-    {
-        return false;
-    }
+    ensure_row_context_capacity(page);
 
     // Rows are a projection of model state; rebuild from scratch after changes.
     ui_layout_container_clear_children(page->rows_container, true);
@@ -484,23 +429,20 @@ static bool rebuild_task_rows(todo_page *page)
             continue;
         }
 
-        if (!add_task_row(page, i))
-        {
-            return false;
-        }
+        add_task_row(page, i);
     }
 
-    return update_task_summary(page);
+    update_task_summary(page);
 }
 
 /*
  * Append one task model entry, growing storage as needed.
  */
-static bool append_task(todo_page *page, const char *title, const char *due_time, bool is_done)
+static void append_task(todo_page *page, const char *title, const char *due_time, bool is_done)
 {
     if (page == NULL || title == NULL || due_time == NULL)
     {
-        return false;
+        fail_fast("todo_page: invalid append_task input");
     }
 
     if (page->task_count == page->task_capacity)
@@ -509,7 +451,7 @@ static bool append_task(todo_page *page, const char *title, const char *due_time
         todo_task *new_tasks = realloc((void *)page->tasks, new_capacity * sizeof(todo_task));
         if (new_tasks == NULL)
         {
-            return false;
+            fail_fast("todo_page: failed to grow task storage");
         }
         page->tasks = new_tasks;
         page->task_capacity = new_capacity;
@@ -518,13 +460,13 @@ static bool append_task(todo_page *page, const char *title, const char *due_time
     char *task_title = duplicate_string(title);
     if (task_title == NULL)
     {
-        return false;
+        fail_fast("todo_page: failed to duplicate task title");
     }
 
     if (page->next_task_id == UINT64_MAX)
     {
         free(task_title);
-        return false;
+        fail_fast("todo_page: task id counter overflow");
     }
 
     todo_task *task = &page->tasks[page->task_count];
@@ -534,7 +476,6 @@ static bool append_task(todo_page *page, const char *title, const char *due_time
     SDL_snprintf(task->due_time, sizeof(task->due_time), "%s", due_time);
     task->is_done = is_done;
     page->task_count++;
-    return true;
 }
 
 /*
@@ -632,29 +573,26 @@ static void fill_random_time(char *buffer, size_t buffer_size)
 /*
  * Create a new task from the text input value and refresh rows.
  */
-static bool add_task_from_input(todo_page *page)
+static void add_task_from_input(todo_page *page)
 {
     if (page == NULL || page->task_input == NULL)
     {
-        return false;
+        fail_fast("todo_page: invalid state in add_task_from_input");
     }
 
     const char *input_value = ui_text_input_get_value(page->task_input);
     if (input_value == NULL || input_value[0] == '\0')
     {
-        return true;
+        return;
     }
 
     char due_time[6] = "00:00";
     fill_current_time(due_time, sizeof(due_time));
 
-    if (!append_task(page, input_value, due_time, false))
-    {
-        return false;
-    }
+    append_task(page, input_value, due_time, false);
 
     ui_text_input_clear(page->task_input);
-    return rebuild_task_rows(page);
+    rebuild_task_rows(page);
 }
 
 /*
@@ -664,7 +602,7 @@ static void clear_done_tasks(todo_page *page)
 {
     if (page == NULL)
     {
-        return;
+        fail_fast("todo_page: invalid state in clear_done_tasks");
     }
 
     size_t write = 0U;
@@ -696,7 +634,7 @@ static void destroy_task_storage(todo_page *page)
 {
     if (page == NULL)
     {
-        return;
+        fail_fast("todo_page: invalid state in destroy_task_storage");
     }
 
     for (size_t i = 0; i < page->task_count; ++i)
@@ -728,13 +666,10 @@ static void handle_add_button_click(void *context)
     todo_page *page = (todo_page *)context;
     if (page == NULL)
     {
-        return;
+        fail_fast("todo_page: add callback context is invalid");
     }
 
-    if (!add_task_from_input(page))
-    {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to add task from input");
-    }
+    add_task_from_input(page);
 }
 
 /*
@@ -756,14 +691,11 @@ static void handle_filter_change(size_t selected_index, const char *selected_lab
     todo_page *page = (todo_page *)context;
     if (page == NULL)
     {
-        return;
+        fail_fast("todo_page: filter callback context is invalid");
     }
 
     page->selected_filter_index = selected_index;
-    if (!rebuild_task_rows(page))
-    {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to rebuild rows after filter change");
-    }
+    rebuild_task_rows(page);
 }
 
 /*
@@ -821,7 +753,7 @@ bool todo_page_resize(todo_page *page, int viewport_width, int viewport_height)
 {
     if (page == NULL)
     {
-        return false;
+        fail_fast("todo_page_resize called with NULL page");
     }
 
     page->viewport_width = viewport_width;
@@ -835,13 +767,13 @@ todo_page *todo_page_create(SDL_Window *window, ui_runtime *context, int viewpor
 {
     if (window == NULL || context == NULL)
     {
-        return NULL;
+        fail_fast("todo_page_create called with invalid arguments");
     }
 
     todo_page *page = calloc(1U, sizeof(todo_page));
     if (page == NULL)
     {
-        return NULL;
+        fail_fast("todo_page: failed to allocate page object");
     }
 
     page->context = context;
@@ -865,64 +797,121 @@ todo_page *todo_page_create(SDL_Window *window, ui_runtime *context, int viewpor
     page->header_left =
         ui_pane_create(&(SDL_FRect){LAYOUT_MARGIN, LAYOUT_MARGIN, 1.0F, HEADER_HEIGHT}, color_panel,
                        &page->color_ink);
+    if (page->header_left == NULL)
+    {
+        fail_fast("todo_page: failed to create header_left pane");
+    }
     page->header_right =
         ui_pane_create(&(SDL_FRect){LAYOUT_MARGIN, LAYOUT_MARGIN, HEADER_RIGHT_W, HEADER_HEIGHT},
                        color_panel, &page->color_ink);
+    if (page->header_right == NULL)
+    {
+        fail_fast("todo_page: failed to create header_right pane");
+    }
 
     page->title_text = ui_text_create(LAYOUT_MARGIN + 22.0F, LAYOUT_MARGIN + 28.0F,
                                       "TODO TASK MANAGEMENT SYSTEM V0.1", page->color_ink, NULL);
+    if (page->title_text == NULL)
+    {
+        fail_fast("todo_page: failed to create title text");
+    }
 
     char header_datetime[40];
     format_header_datetime(header_datetime, sizeof(header_datetime));
     page->datetime_text = ui_text_create(LAYOUT_MARGIN + 24.0F, LAYOUT_MARGIN + 28.0F,
                                          header_datetime, page->color_muted, NULL);
+    if (page->datetime_text == NULL)
+    {
+        fail_fast("todo_page: failed to create datetime text");
+    }
 
     page->icon_cell =
         ui_pane_create(&(SDL_FRect){LAYOUT_MARGIN, INPUT_ROW_Y, ICON_CELL_W, INPUT_ROW_HEIGHT},
                        color_panel, &page->color_ink);
+    if (page->icon_cell == NULL)
+    {
+        fail_fast("todo_page: failed to create icon cell pane");
+    }
     page->icon_arrow =
         ui_text_create(LAYOUT_MARGIN + 22.0F, INPUT_ROW_Y + 26.0F, ">", color_accent, NULL);
+    if (page->icon_arrow == NULL)
+    {
+        fail_fast("todo_page: failed to create icon arrow text");
+    }
 
     page->task_input = ui_text_input_create(
         &(SDL_FRect){input_field_x, INPUT_ROW_Y, INPUT_FIELD_W, INPUT_ROW_HEIGHT},
         page->color_muted, color_panel, page->color_ink, page->color_ink, "enter task...",
         page->color_muted, window, handle_task_input_submit, page);
+    if (page->task_input == NULL)
+    {
+        fail_fast("todo_page: failed to create task input");
+    }
 
     page->add_button = ui_button_create(
         &(SDL_FRect){LAYOUT_MARGIN, INPUT_ROW_Y, ADD_BUTTON_W, INPUT_ROW_HEIGHT}, color_button_dark,
         page->color_button_down, "ADD", &page->color_ink, handle_add_button_click, page);
+    if (page->add_button == NULL)
+    {
+        fail_fast("todo_page: failed to create add button");
+    }
 
     page->stats_text =
         ui_text_create(LAYOUT_MARGIN, STATS_ROW_Y, "0 ACTIVE - 0 DONE", page->color_ink, NULL);
+    if (page->stats_text == NULL)
+    {
+        fail_fast("todo_page: failed to create stats text");
+    }
 
     page->filter_group = ui_segment_group_create(
         &(SDL_FRect){LAYOUT_MARGIN, STATS_ROW_Y, FILTER_W, FILTER_H}, TODO_FILTER_LABELS,
         SDL_arraysize(TODO_FILTER_LABELS), 0U, color_panel, color_button_dark,
         page->color_button_down, page->color_muted, color_panel, &page->color_ink,
         handle_filter_change, page);
+    if (page->filter_group == NULL)
+    {
+        fail_fast("todo_page: failed to create filter group");
+    }
 
     page->top_rule = ui_hrule_create(1.0F, page->color_ink, 0.0F);
-    if (page->top_rule != NULL)
+    if (page->top_rule == NULL)
+    {
+        fail_fast("todo_page: failed to create top rule");
+    }
+    else
     {
         page->top_rule->base.rect = (SDL_FRect){LAYOUT_MARGIN, LIST_TOP_Y - 6.0F, 1.0F, 1.0F};
     }
 
     page->list_frame = ui_pane_create(&(SDL_FRect){LAYOUT_MARGIN, LIST_TOP_Y, 1.0F, 1.0F},
                                       color_panel, &page->color_ink);
+    if (page->list_frame == NULL)
+    {
+        fail_fast("todo_page: failed to create list frame");
+    }
 
     page->rows_container = ui_layout_container_create(
         &(SDL_FRect){LAYOUT_MARGIN, LIST_TOP_Y, 1.0F, 1.0F}, UI_LAYOUT_AXIS_VERTICAL, NULL);
-
-    if (page->rows_container != NULL)
+    if (page->rows_container == NULL)
     {
-        // Scroll view takes ownership of rows_container on success.
-        page->scroll_view =
-            ui_scroll_view_create(&(SDL_FRect){LAYOUT_MARGIN, LIST_TOP_Y, 1.0F, 1.0F},
-                                  (ui_element *)page->rows_container, SCROLL_STEP, NULL);
+        fail_fast("todo_page: failed to create rows container");
+    }
+
+    // Scroll view takes ownership of rows_container on success.
+    page->scroll_view =
+        ui_scroll_view_create(&(SDL_FRect){LAYOUT_MARGIN, LIST_TOP_Y, 1.0F, 1.0F},
+                              (ui_element *)page->rows_container, SCROLL_STEP, NULL);
+    if (page->scroll_view == NULL)
+    {
+        fail_fast("todo_page: failed to create scroll view");
     }
 
     page->bottom_rule = ui_hrule_create(1.0F, page->color_ink, 0.0F);
-    if (page->bottom_rule != NULL)
+    if (page->bottom_rule == NULL)
+    {
+        fail_fast("todo_page: failed to create bottom rule");
+    }
+    else
     {
         page->bottom_rule->base.rect = (SDL_FRect){LAYOUT_MARGIN, LIST_TOP_Y, 1.0F, 1.0F};
     }
@@ -930,89 +919,55 @@ todo_page *todo_page_create(SDL_Window *window, ui_runtime *context, int viewpor
     page->clear_done = ui_button_create(
         &(SDL_FRect){LAYOUT_MARGIN, LIST_TOP_Y, CLEAR_BUTTON_W, CLEAR_BUTTON_H}, color_button_dark,
         page->color_button_down, "CLEAR DONE", &page->color_ink, handle_clear_button_click, page);
+    if (page->clear_done == NULL)
+    {
+        fail_fast("todo_page: failed to create clear-done button");
+    }
 
     page->remaining_text =
         ui_text_create(LAYOUT_MARGIN, LIST_TOP_Y, "0 REMAINING", page->color_muted, NULL);
+    if (page->remaining_text == NULL)
+    {
+        fail_fast("todo_page: failed to create remaining text");
+    }
 
     page->fps_counter =
         ui_fps_counter_create(viewport_width, viewport_height, 12.0F, page->color_ink, NULL);
+    if (page->fps_counter == NULL)
+    {
+        fail_fast("todo_page: failed to create fps counter");
+    }
     page->window_root =
         ui_window_create(&(SDL_FRect){0.0F, 0.0F, (float)viewport_width, (float)viewport_height});
-    if (page->fps_counter != NULL && page->window_root != NULL)
+    if (page->window_root == NULL)
     {
-        page->fps_counter->base.parent = &page->window_root->base;
-        page->fps_counter->base.align_h = UI_ALIGN_RIGHT;
-        page->fps_counter->base.align_v = UI_ALIGN_BOTTOM;
+        fail_fast("todo_page: failed to create window root");
     }
-
-    if (page->header_left == NULL || page->header_right == NULL || page->title_text == NULL ||
-        page->datetime_text == NULL || page->icon_cell == NULL || page->icon_arrow == NULL ||
-        page->task_input == NULL || page->add_button == NULL || page->stats_text == NULL ||
-        page->filter_group == NULL || page->top_rule == NULL || page->list_frame == NULL ||
-        page->rows_container == NULL || page->scroll_view == NULL || page->bottom_rule == NULL ||
-        page->clear_done == NULL || page->remaining_text == NULL || page->fps_counter == NULL ||
-        page->window_root == NULL)
-    {
-        destroy_element((ui_element *)page->scroll_view);
-        if (page->scroll_view == NULL)
-        {
-            destroy_element((ui_element *)page->rows_container);
-        }
-        destroy_element((ui_element *)page->header_left);
-        destroy_element((ui_element *)page->header_right);
-        destroy_element((ui_element *)page->title_text);
-        destroy_element((ui_element *)page->datetime_text);
-        destroy_element((ui_element *)page->icon_cell);
-        destroy_element((ui_element *)page->icon_arrow);
-        destroy_element((ui_element *)page->task_input);
-        destroy_element((ui_element *)page->add_button);
-        destroy_element((ui_element *)page->stats_text);
-        destroy_element((ui_element *)page->filter_group);
-        destroy_element((ui_element *)page->top_rule);
-        destroy_element((ui_element *)page->list_frame);
-        destroy_element((ui_element *)page->bottom_rule);
-        destroy_element((ui_element *)page->clear_done);
-        destroy_element((ui_element *)page->remaining_text);
-        destroy_element((ui_element *)page->fps_counter);
-        destroy_element((ui_element *)page->window_root);
-        page->rows_container = NULL;
-        page->scroll_view = NULL;
-        page->task_input = NULL;
-        page->stats_text = NULL;
-        page->remaining_text = NULL;
-        page->datetime_text = NULL;
-        free(page);
-        return NULL;
-    }
+    page->fps_counter->base.parent = &page->window_root->base;
+    page->fps_counter->base.align_h = UI_ALIGN_RIGHT;
+    page->fps_counter->base.align_v = UI_ALIGN_BOTTOM;
 
     // Single source of truth for viewport-dependent geometry at startup.
     relayout_page(page);
 
-    if (!register_element(page, (ui_element *)page->header_left) ||
-        !register_element(page, (ui_element *)page->header_right) ||
-        !register_element(page, (ui_element *)page->title_text) ||
-        !register_element(page, (ui_element *)page->window_root) ||
-        !register_element(page, (ui_element *)page->title_text) ||
-        !register_element(page, (ui_element *)page->datetime_text) ||
-        !register_element(page, (ui_element *)page->icon_cell) ||
-        !register_element(page, (ui_element *)page->icon_arrow) ||
-        !register_element(page, (ui_element *)page->task_input) ||
-        !register_element(page, (ui_element *)page->add_button) ||
-        !register_element(page, (ui_element *)page->stats_text) ||
-        !register_element(page, (ui_element *)page->filter_group) ||
-        !register_element(page, (ui_element *)page->top_rule) ||
-        !register_element(page, (ui_element *)page->list_frame) ||
-        !register_element(page, (ui_element *)page->scroll_view) ||
-        !register_element(page, (ui_element *)page->bottom_rule) ||
-        !register_element(page, (ui_element *)page->clear_done) ||
-        !register_element(page, (ui_element *)page->remaining_text) ||
-        !register_element(page, (ui_element *)page->fps_counter))
-    {
-        destroy_task_storage(page);
-        unregister_elements(page);
-        free(page);
-        return NULL;
-    }
+    register_element(page, (ui_element *)page->header_left);
+    register_element(page, (ui_element *)page->header_right);
+    register_element(page, (ui_element *)page->window_root);
+    register_element(page, (ui_element *)page->title_text);
+    register_element(page, (ui_element *)page->datetime_text);
+    register_element(page, (ui_element *)page->icon_cell);
+    register_element(page, (ui_element *)page->icon_arrow);
+    register_element(page, (ui_element *)page->task_input);
+    register_element(page, (ui_element *)page->add_button);
+    register_element(page, (ui_element *)page->stats_text);
+    register_element(page, (ui_element *)page->filter_group);
+    register_element(page, (ui_element *)page->top_rule);
+    register_element(page, (ui_element *)page->list_frame);
+    register_element(page, (ui_element *)page->scroll_view);
+    register_element(page, (ui_element *)page->bottom_rule);
+    register_element(page, (ui_element *)page->clear_done);
+    register_element(page, (ui_element *)page->remaining_text);
+    register_element(page, (ui_element *)page->fps_counter);
 
     static const char *initial_task_titles[] = {
         "red", "orange", "yellow", "green", "blue", "indigo", "violet", "cyan", "magenta", "amber",
@@ -1022,22 +977,10 @@ todo_page *todo_page_create(SDL_Window *window, ui_runtime *context, int viewpor
     for (size_t i = 0U; i < SDL_arraysize(initial_task_titles); ++i)
     {
         fill_random_time(initial_due_time, sizeof(initial_due_time));
-        if (!append_task(page, initial_task_titles[i], initial_due_time, false))
-        {
-            destroy_task_storage(page);
-            unregister_elements(page);
-            free(page);
-            return NULL;
-        }
+        append_task(page, initial_task_titles[i], initial_due_time, false);
     }
 
-    if (!rebuild_task_rows(page))
-    {
-        destroy_task_storage(page);
-        unregister_elements(page);
-        free(page);
-        return NULL;
-    }
+    rebuild_task_rows(page);
 
     return page;
 }
@@ -1046,7 +989,7 @@ bool todo_page_update(todo_page *page)
 {
     if (page == NULL)
     {
-        return false;
+        fail_fast("todo_page_update called with NULL page");
     }
 
     const time_t now = time(NULL);
@@ -1059,7 +1002,11 @@ bool todo_page_update(todo_page *page)
     page->last_header_time = now;
     char header_datetime[40];
     format_header_datetime(header_datetime, sizeof(header_datetime));
-    return ui_text_set_content(page->datetime_text, header_datetime);
+    if (!ui_text_set_content(page->datetime_text, header_datetime))
+    {
+        fail_fast("todo_page: failed to update header datetime text");
+    }
+    return true;
 }
 
 static void *create_todo_page_instance(SDL_Window *window, ui_runtime *context, int viewport_width,
@@ -1094,7 +1041,7 @@ void todo_page_destroy(todo_page *page)
 {
     if (page == NULL)
     {
-        return;
+        fail_fast("todo_page_destroy called with NULL page");
     }
 
     destroy_task_storage(page);
