@@ -110,6 +110,9 @@ static const float FILTER_W = 272.0F;
 static const float FILTER_H = 40.0F;
 static const char *TODO_FILTER_LABELS[] = {"ALL", "ACTIVE", "DONE"};
 
+/*
+ * Invoke an element's destructor callback when present.
+ */
 static void destroy_element(ui_element *element)
 {
     if (element != NULL && element->ops != NULL && element->ops->destroy != NULL)
@@ -118,6 +121,9 @@ static void destroy_element(ui_element *element)
     }
 }
 
+/*
+ * Register one page-owned element into the UI context and track it for teardown.
+ */
 static bool register_element(todo_page *page, ui_element *element)
 {
     if (page == NULL || page->context == NULL || element == NULL)
@@ -142,6 +148,9 @@ static bool register_element(todo_page *page, ui_element *element)
     return true;
 }
 
+/*
+ * Remove and destroy all elements this page registered in reverse add order.
+ */
 static void unregister_elements(todo_page *page)
 {
     if (page == NULL || page->context == NULL)
@@ -158,6 +167,9 @@ static void unregister_elements(todo_page *page)
     page->registered_count = 0U;
 }
 
+/*
+ * Add a child to a layout container, destroying the child on failure.
+ */
 static bool add_child_or_fail(ui_layout_container *container, ui_element *child)
 {
     if (!ui_layout_container_add_child(container, child))
@@ -168,6 +180,9 @@ static bool add_child_or_fail(ui_layout_container *container, ui_element *child)
     return true;
 }
 
+/*
+ * Recompute and refresh the "active/done/remaining" summary labels.
+ */
 static bool update_task_summary(todo_page *page)
 {
     if (page == NULL || page->stats_text == NULL || page->remaining_text == NULL)
@@ -206,11 +221,17 @@ static bool update_task_summary(todo_page *page)
 
 static bool rebuild_task_rows(todo_page *page);
 
+/*
+ * Compute the usable content width from viewport width and horizontal margins.
+ */
 static float compute_content_width(const todo_page *page)
 {
     return (float)page->viewport_width - 2.0F * LAYOUT_MARGIN;
 }
 
+/*
+ * Return whether a task should be visible under the currently selected filter.
+ */
 static bool does_task_match_filter(const todo_page *page, const todo_task *task)
 {
     if (page == NULL || task == NULL)
@@ -230,6 +251,9 @@ static bool does_task_match_filter(const todo_page *page, const todo_task *task)
     }
 }
 
+/*
+ * Ensure per-row callback context storage can index every task entry.
+ */
 static bool ensure_row_context_capacity(todo_page *page)
 {
     if (page == NULL)
@@ -264,6 +288,9 @@ static bool ensure_row_context_capacity(todo_page *page)
     return true;
 }
 
+/*
+ * Delete a task by index and rebuild visible rows afterward.
+ */
 static bool delete_task_at_index(todo_page *page, size_t index)
 {
     if (page == NULL || index >= page->task_count)
@@ -283,6 +310,9 @@ static bool delete_task_at_index(todo_page *page, size_t index)
     return rebuild_task_rows(page);
 }
 
+/*
+ * Button callback that deletes the row's bound task.
+ */
 static void handle_delete_button_click(void *context)
 {
     task_row_context *row_ctx = (task_row_context *)context;
@@ -298,6 +328,9 @@ static void handle_delete_button_click(void *context)
     }
 }
 
+/*
+ * Checkbox callback that toggles task completion and refreshes row projection.
+ */
 static void handle_task_checkbox_change(bool checked, void *context)
 {
     task_row_context *row_ctx = (task_row_context *)context;
@@ -319,6 +352,9 @@ static void handle_task_checkbox_change(bool checked, void *context)
     }
 }
 
+/*
+ * Build one horizontal UI row for the task at the provided model index.
+ */
 static bool add_task_row(todo_page *page, size_t index)
 {
     if (page == NULL || page->rows_container == NULL || index >= page->task_count)
@@ -417,6 +453,9 @@ static bool add_task_row(todo_page *page, size_t index)
     return true;
 }
 
+/*
+ * Rebuild the entire task-row container from current model/filter state.
+ */
 static bool rebuild_task_rows(todo_page *page)
 {
     if (page == NULL || page->rows_container == NULL)
@@ -447,6 +486,9 @@ static bool rebuild_task_rows(todo_page *page)
     return update_task_summary(page);
 }
 
+/*
+ * Append one task model entry, growing storage as needed.
+ */
 static bool append_task(todo_page *page, const char *title, const char *due_time, bool is_done)
 {
     if (page == NULL || title == NULL || due_time == NULL)
@@ -488,6 +530,9 @@ static bool append_task(todo_page *page, const char *title, const char *due_time
     return true;
 }
 
+/*
+ * Format the header clock string as uppercased local date/time text.
+ */
 static void format_header_datetime(char *buffer, size_t buffer_size)
 {
     if (buffer == NULL || buffer_size == 0U)
@@ -515,6 +560,9 @@ static void format_header_datetime(char *buffer, size_t buffer_size)
     }
 }
 
+/*
+ * Fill buffer with local current time in HH:MM format.
+ */
 static void fill_current_time(char *buffer, size_t buffer_size)
 {
     if (buffer == NULL || buffer_size < 6U)
@@ -536,6 +584,9 @@ static void fill_current_time(char *buffer, size_t buffer_size)
     }
 }
 
+/*
+ * Generate a simple pseudo-random 32-bit value from an internal xorshift state.
+ */
 static uint32_t next_pseudo_random_u32(void)
 {
     static uint64_t state = 0U;
@@ -556,6 +607,9 @@ static uint32_t next_pseudo_random_u32(void)
     return (uint32_t)(state >> 32U);
 }
 
+/*
+ * Fill buffer with a pseudo-random HH:MM value.
+ */
 static void fill_random_time(char *buffer, size_t buffer_size)
 {
     if (buffer == NULL || buffer_size < 6U)
@@ -568,6 +622,9 @@ static void fill_random_time(char *buffer, size_t buffer_size)
     SDL_snprintf(buffer, buffer_size, "%02d:%02d", hour, minute);
 }
 
+/*
+ * Create a new task from the text input value and refresh rows.
+ */
 static bool add_task_from_input(todo_page *page)
 {
     if (page == NULL || page->task_input == NULL)
@@ -593,6 +650,9 @@ static bool add_task_from_input(todo_page *page)
     return rebuild_task_rows(page);
 }
 
+/*
+ * Remove every completed task from model storage and refresh rows.
+ */
 static void clear_done_tasks(todo_page *page)
 {
     if (page == NULL)
@@ -622,6 +682,9 @@ static void clear_done_tasks(todo_page *page)
     (void)rebuild_task_rows(page);
 }
 
+/*
+ * Release all heap allocations owned by task model storage.
+ */
 static void destroy_task_storage(todo_page *page)
 {
     if (page == NULL)
@@ -645,8 +708,14 @@ static void destroy_task_storage(todo_page *page)
     page->row_context_capacity = 0U;
 }
 
+/*
+ * Button callback that clears all completed tasks.
+ */
 static void handle_clear_button_click(void *context) { clear_done_tasks((todo_page *)context); }
 
+/*
+ * Button callback that attempts to add a task from input.
+ */
 static void handle_add_button_click(void *context)
 {
     todo_page *page = (todo_page *)context;
@@ -661,12 +730,18 @@ static void handle_add_button_click(void *context)
     }
 }
 
+/*
+ * Text-input submit callback that reuses add-button behavior.
+ */
 static void handle_task_input_submit(const char *value, void *context)
 {
     (void)value;
     handle_add_button_click(context);
 }
 
+/*
+ * Segment-group callback that updates the active filter and refreshes rows.
+ */
 static void handle_filter_change(size_t selected_index, const char *selected_label, void *context)
 {
     (void)selected_label;
@@ -684,6 +759,9 @@ static void handle_filter_change(size_t selected_index, const char *selected_lab
     }
 }
 
+/*
+ * Recompute element rectangles for the current viewport dimensions.
+ */
 static void relayout_page(todo_page *page)
 {
     const float content_width = compute_content_width(page);
