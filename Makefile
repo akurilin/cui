@@ -61,8 +61,9 @@ format-check: check-tools
 lint: check-tools configure
 	$(CLANG_TIDY) $(C_SOURCES) -p build $(TIDY_EXTRA_ARGS)
 
-analyze: check-tools configure
-	$(SCAN_BUILD) --status-bugs --exclude vendored/SDL cmake --build build --clean-first
+analyze: check-tools
+	cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DBUILD_TESTING=OFF
+	$(SCAN_BUILD) --status-bugs --exclude vendored/SDL --exclude vendored/SDL_image cmake --build build --target cui
 
 precommit: format-check lint analyze
 

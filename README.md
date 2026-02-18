@@ -145,7 +145,7 @@ make run      # build + run build/Debug/cui, build/Release/cui, or build/cui
 make clean    # remove build directory
 make format   # apply clang-format to non-vendored .c/.h files
 make lint     # run clang-tidy checks
-make analyze  # run Clang Static Analyzer via scan-build
+make analyze  # run Clang Static Analyzer for the cui target via scan-build
 make precommit # run all commit-gating checks
 make install-hooks # enable repo-managed Git hooks
 ```
