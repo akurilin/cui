@@ -27,3 +27,5 @@
 ## UI Change Validation
 - After any UI-related code change, verify the visual result at the end of the task.
 - Run `scripts/capture_app_window.sh` to capture the app window, then compare the captured image against the expected UI outcome before finishing.
+- Save validation screenshots to `/tmp` (for example, `/tmp/cui-check.png`), not to `assets/`.
+- Treat these captures as ephemeral one-time checks and delete any accidental validation screenshots created under `assets/`.

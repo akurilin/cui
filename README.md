@@ -239,13 +239,19 @@ on your generator/configuration, run one of:
 Optional startup window size:
 
 ```
-./build/cui <width> <height>
+./build/cui --width <width> --height <height>
 ```
 
 Example:
 
 ```
-./build/cui 800 600
+./build/cui -w 800 -h 600
+```
+
+Show command-line help:
+
+```
+./build/cui --help
 ```
 
 ## Screenshot Capture (macOS)
@@ -259,7 +265,7 @@ scripts/capture_app_window.sh ./build/cui assets/screenshots/example.png
 Pass app arguments (for example startup width/height) after `--`:
 
 ```bash
-scripts/capture_app_window.sh ./build/cui assets/screenshots/example-800x600.png 2 -- 800 600
+scripts/capture_app_window.sh ./build/cui assets/screenshots/example-800x600.png 2 -- --width 800 --height 600
 ```
 
 ## Submodule workflow
