@@ -176,7 +176,7 @@ In short: resize updates page-level geometry immediately, and container-based ch
 
 - Element constructors (`ui_button_create`, `ui_pane_create`, etc.) allocate on the heap and return ownership to caller.
 - After `ui_runtime_add` succeeds, ownership transfers to `ui_runtime`.
-- `todo_page_create` registers page elements in `ui_runtime`; on any partial failure it rolls back and destroys already-registered page elements before returning `NULL`.
+- Sample page constructors (`todo_page_create`, `corners_page_create`, `showcase_page_create`) now follow a fail-fast policy for unrecoverable internal failures (allocation/creation/registration): they log a critical error and abort instead of returning a recoverable error to callers.
 - `todo_page_destroy` removes and destroys elements that were registered by the page, then frees page-owned task/model storage.
 
 ## Roadmap

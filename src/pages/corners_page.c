@@ -3,6 +3,7 @@
 #include "ui/ui_button.h"
 #include "ui/ui_window.h"
 
+#include <stdarg.h>
 #include <stdlib.h>
 
 typedef enum corner_button_slot
@@ -53,21 +54,22 @@ static const anchored_button_spec BUTTON_SPECS[CORNER_BUTTON_COUNT] = {
                                     EDGE_MARGIN},
 };
 
-static void destroy_element(ui_element *element)
+static _Noreturn void fail_fast(const char *format, ...)
 {
-    if (element != NULL && element->ops != NULL && element->ops->destroy != NULL)
-    {
-        element->ops->destroy(element);
-    }
+    va_list args;
+    va_start(args, format);
+    SDL_LogMessageV(SDL_LOG_CATEGORY_APPLICATION, SDL_LOG_PRIORITY_CRITICAL, format, args);
+    va_end(args);
+    abort();
 }
 
 static void handle_corner_button_click(void *context) { (void)context; }
 
 static ui_button *create_anchored_button(const anchored_button_spec *spec, ui_element *parent)
 {
-    if (spec == NULL)
+    if (spec == NULL || parent == NULL)
     {
-        return NULL;
+        fail_fast("corners_page: invalid anchored button spec");
     }
 
     const SDL_Color color_up = {28, 30, 36, 255};
@@ -78,29 +80,13 @@ static ui_button *create_anchored_button(const anchored_button_spec *spec, ui_el
         color_down, spec->label, &border_color, handle_corner_button_click, NULL);
     if (button == NULL)
     {
-        return NULL;
+        fail_fast("corners_page: failed to create anchored button");
     }
 
     button->base.parent = parent;
     button->base.align_h = spec->align_h;
     button->base.align_v = spec->align_v;
     return button;
-}
-
-static void destroy_unregistered_elements(corners_page *page)
-{
-    if (page == NULL)
-    {
-        return;
-    }
-
-    for (size_t i = 0U; i < SDL_arraysize(page->buttons); ++i)
-    {
-        destroy_element((ui_element *)page->buttons[i]);
-        page->buttons[i] = NULL;
-    }
-    destroy_element((ui_element *)page->window_root);
-    page->window_root = NULL;
 }
 
 static void remove_registered_elements(corners_page *page)
@@ -133,13 +119,13 @@ corners_page *corners_page_create(SDL_Window *window, ui_runtime *context, int v
 
     if (context == NULL || viewport_width <= 0 || viewport_height <= 0)
     {
-        return NULL;
+        fail_fast("corners_page_create called with invalid arguments");
     }
 
     corners_page *page = calloc(1U, sizeof(*page));
     if (page == NULL)
     {
-        return NULL;
+        fail_fast("corners_page: failed to allocate page object");
     }
 
     page->context = context;
@@ -147,8 +133,7 @@ corners_page *corners_page_create(SDL_Window *window, ui_runtime *context, int v
         ui_window_create(&(SDL_FRect){0.0F, 0.0F, (float)viewport_width, (float)viewport_height});
     if (page->window_root == NULL)
     {
-        corners_page_destroy(page);
-        return NULL;
+        fail_fast("corners_page: failed to create window root");
     }
 
     for (size_t i = 0U; i < SDL_arraysize(page->buttons); ++i)
@@ -156,23 +141,20 @@ corners_page *corners_page_create(SDL_Window *window, ui_runtime *context, int v
         page->buttons[i] = create_anchored_button(&BUTTON_SPECS[i], &page->window_root->base);
         if (page->buttons[i] == NULL)
         {
-            corners_page_destroy(page);
-            return NULL;
+            fail_fast("corners_page: failed to create anchored button %zu", i);
         }
     }
 
     if (!ui_runtime_add(page->context, (ui_element *)page->window_root))
     {
-        corners_page_destroy(page);
-        return NULL;
+        fail_fast("corners_page: failed to register window root");
     }
 
     for (size_t i = 0U; i < SDL_arraysize(page->buttons); ++i)
     {
         if (!ui_runtime_add(page->context, (ui_element *)page->buttons[i]))
         {
-            corners_page_destroy(page);
-            return NULL;
+            fail_fast("corners_page: failed to register button %zu", i);
         }
     }
 
@@ -183,23 +165,33 @@ bool corners_page_resize(corners_page *page, int viewport_width, int viewport_he
 {
     if (page == NULL || page->window_root == NULL || viewport_width <= 0 || viewport_height <= 0)
     {
-        return false;
+        fail_fast("corners_page_resize called with invalid arguments");
     }
 
-    return ui_window_set_size(page->window_root, (float)viewport_width, (float)viewport_height);
+    if (!ui_window_set_size(page->window_root, (float)viewport_width, (float)viewport_height))
+    {
+        fail_fast("corners_page: failed to resize window root");
+    }
+    return true;
 }
 
-bool corners_page_update(corners_page *page) { return page != NULL; }
+bool corners_page_update(corners_page *page)
+{
+    if (page == NULL)
+    {
+        fail_fast("corners_page_update called with NULL page");
+    }
+    return true;
+}
 
 void corners_page_destroy(corners_page *page)
 {
     if (page == NULL)
     {
-        return;
+        fail_fast("corners_page_destroy called with NULL page");
     }
 
     remove_registered_elements(page);
-    destroy_unregistered_elements(page);
     free(page);
 }
 

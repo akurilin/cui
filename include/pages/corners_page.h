@@ -23,8 +23,8 @@ typedef struct corners_page corners_page;
  *
  * Behavior/contract:
  * - On success, returns a valid `corners_page *`.
- * - On failure, destroys any partially created/registered elements and returns
- *   NULL.
+ * - On unrecoverable internal failure (allocation/creation/registration),
+ *   the page logs a critical error and aborts the process (fail-fast policy).
  *
  * Parameters:
  * - `window`: SDL window handle (unused by this page, but kept for a common
@@ -36,7 +36,6 @@ typedef struct corners_page corners_page;
  *
  * Return value:
  * - Non-NULL page handle on success.
- * - NULL on allocation/creation/registration failure.
  *
  * Ownership/lifecycle:
  * - Caller owns the returned `corners_page *` and must release it with
@@ -58,7 +57,7 @@ corners_page *corners_page_create(SDL_Window *window, ui_runtime *context, int v
  *
  * Return value:
  * - true on success.
- * - false on invalid arguments.
+ * - This function follows fail-fast semantics for invalid state.
  *
  * Ownership/lifecycle:
  * - Does not transfer ownership.
@@ -72,8 +71,8 @@ bool corners_page_resize(corners_page *page, int viewport_width, int viewport_he
  * - `page`: page instance returned by `corners_page_create`.
  *
  * Return value:
- * - true when page is valid.
- * - false when `page` is NULL.
+ * - true when update succeeds.
+ * - This function follows fail-fast semantics for invalid state.
  */
 bool corners_page_update(corners_page *page);
 
@@ -81,7 +80,7 @@ bool corners_page_update(corners_page *page);
  * Destroy a corners page and release its resources.
  *
  * Parameters:
- * - `page`: page instance to destroy; NULL is allowed.
+ * - `page`: page instance to destroy; must be non-NULL.
  *
  * Ownership/lifecycle:
  * - After this call, `page` is invalid and must not be reused.

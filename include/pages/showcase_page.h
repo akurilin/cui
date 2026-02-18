@@ -22,7 +22,8 @@ typedef struct showcase_page showcase_page;
  *
  * Behavior/contract:
  * - Returns a valid `showcase_page *` on success.
- * - Returns NULL on allocation, creation, or registration failure.
+ * - On unrecoverable internal failure (allocation/creation/registration),
+ *   the page logs a critical error and aborts the process (fail-fast policy).
  *
  * Parameters:
  * - `window`: SDL window used by controls that require a window handle.
@@ -50,7 +51,7 @@ showcase_page *showcase_page_create(SDL_Window *window, ui_runtime *context, int
  *
  * Return value:
  * - true on success.
- * - false on invalid arguments.
+ * - This function follows fail-fast semantics for invalid state.
  */
 bool showcase_page_resize(showcase_page *page, int viewport_width, int viewport_height);
 
@@ -61,8 +62,8 @@ bool showcase_page_resize(showcase_page *page, int viewport_width, int viewport_
  * - `page`: page instance returned by `showcase_page_create`.
  *
  * Return value:
- * - true when page is valid.
- * - false when `page` is NULL.
+ * - true when update succeeds.
+ * - This function follows fail-fast semantics for invalid state.
  */
 bool showcase_page_update(showcase_page *page);
 
@@ -70,7 +71,7 @@ bool showcase_page_update(showcase_page *page);
  * Destroy a showcase page and release all owned resources.
  *
  * Parameters:
- * - `page`: page instance to destroy; NULL is allowed.
+ * - `page`: page instance to destroy; must be non-NULL.
  */
 void showcase_page_destroy(showcase_page *page);
 
