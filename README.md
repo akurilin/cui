@@ -3,13 +3,20 @@
 
 # Project description
 
-This project is focused on building a reusable UI kit in C using SDL3, currently targeting macOS. The `todo_page` is a sample application that demonstrates how to compose and run a real screen using the kit's widgets, layout, and event system.
+This project is focused on building a reusable UI kit in C using SDL3, currently targeting macOS. The sample app currently includes two pages:
+
+- `todo` (`todo_page`): the primary sample application showing realistic widget composition and interactions.
+- `corners` (`corners_page`): a resize/anchor validation page with eight edge/corner anchored buttons.
 
 ## Current UI
 
 Captured on February 14, 2026 from the current TODO sample page:
 
 ![Main page UI screenshot (2026-02-14)](assets/screenshots/main-page-2026-02-14.png)
+
+Captured on February 18, 2026 from the corners page as a showcase of anchoring behavior when the window is resized:
+
+![Corners page anchoring screenshot (2026-02-18)](assets/screenshots/corners-page-anchoring-2026-02-18.png)
 
 SDL and SDL_image are brought in as Git submodules at `vendored/SDL` and
 `vendored/SDL_image`.
@@ -24,6 +31,7 @@ The codebase is split into:
 
 - `main.c` is composition/root wiring only: parse startup flags, select a page by id, create window/renderer, initialize `ui_runtime`, create the active page, and run the main loop.
 - `todo_page` is the sample TODO app and owns todo-specific model state plus screen-level UI composition.
+- `corners_page` is a lightweight anchor test screen used to verify corner/edge placement during resize.
 - `ui_runtime` is the lifecycle owner + dispatcher for all elements.
 - `ui_element` is the common base interface for polymorphism in C.
 
@@ -72,7 +80,7 @@ Children track a **parent pointer and alignment anchors** for relative positioni
 
 Key files:
 
-- `include/pages/app_page.h`: generic page descriptor/lifecycle interface plus build-generated page table declarations.
+- `include/pages/app_page.h`: generic page-ops interface plus build-generated page table declarations.
 - `include/pages/corners_page.h`, `src/pages/corners_page.c`: resize-anchor test page with eight edge/corner-aligned buttons.
 - `include/pages/todo_page.h`, `src/pages/todo_page.c`: todo page public lifecycle API + private page logic (task state, callbacks, and widget composition).
 - `CMakeLists.txt` (page discovery): scans `src/pages/*_page.c` and generates `build/generated/page_index.c`, which exports `app_pages[]` for runtime page selection.
@@ -111,6 +119,14 @@ Per frame, `main.c` drives the UI system in this order:
 - Dispatch `update` only for `enabled` elements.
 - Dispatch `render` only for `visible` elements.
 - Destroy all registered elements via each element's `destroy` op during `ui_runtime_destroy`.
+
+### Page Discovery & Startup Selection
+
+- Page ids are derived from filenames using `src/pages/<id>_page.c`.
+- CMake discovers all `*_page.c` files and generates `build/generated/page_index.c`.
+- Each page exports `<id>_page_ops` (for example, `todo_page_ops`, `corners_page_ops`).
+- `main.c` selects the startup page with `--page <id>`.
+- `--help` prints the currently discovered page ids.
 
 ### Startup vs Resize Control Flow
 
@@ -273,6 +289,12 @@ Pass app args through `make run`:
 
 ```bash
 make run RUN_ARGS="--page todo --width 800 --height 600"
+```
+
+`ARGS` is also supported as an alias:
+
+```bash
+make run ARGS="--page corners --width 1000 --height 700"
 ```
 
 ## Screenshot Capture (macOS)
