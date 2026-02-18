@@ -50,7 +50,7 @@ typedef struct ui_checkbox
  * - border_color: optional border color around full checkbox bounds (NULL disables)
  *
  * Returns a heap-allocated checkbox or NULL on failure.
- * Ownership transfers to caller (or ui_context after ui_context_add succeeds).
+ * Ownership transfers to caller (or ui_runtime after ui_runtime_add succeeds).
  */
 ui_checkbox *ui_checkbox_create(float x, float y, const char *label, SDL_Color box_color,
                                 SDL_Color check_color, SDL_Color label_color,

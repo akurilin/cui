@@ -18,9 +18,9 @@ SDL and SDL_image are brought in as Git submodules at `vendored/SDL` and
 
 The codebase is split into a reusable UI kit (`include/ui`, `src/ui`) and an example app layer (`include/pages`, `src/pages`) hosted by a small application shell (`main.c`).
 
-- `main.c` is composition/root wiring only: create window/renderer, initialize `ui_context`, create the active page, and run the main loop.
+- `main.c` is composition/root wiring only: create window/renderer, initialize `ui_runtime`, create the active page, and run the main loop.
 - `todo_page` is the sample TODO app and owns todo-specific model state plus screen-level UI composition.
-- `ui_context` is the lifecycle owner + dispatcher for all elements.
+- `ui_runtime` is the lifecycle owner + dispatcher for all elements.
 - `ui_element` is the common base interface for polymorphism in C.
 
 ### UI "Inheritance" Model (C-style)
@@ -30,7 +30,7 @@ There is no language-level inheritance in C, so this project uses struct embeddi
 - Every concrete widget embeds `ui_element base;` as its first field.
 - Every concrete widget installs a `ui_element_ops` table (`handle_event`, optional `hit_test`,
   optional `can_focus`, optional `set_focus`, `update`, `render`, `destroy`).
-- `ui_context` stores all widgets as `ui_element *` and calls the ops table, which gives runtime polymorphism similar to a base-class interface.
+- `ui_runtime` stores all widgets as `ui_element *` and calls the ops table, which gives runtime polymorphism similar to a base-class interface.
 
 Inheritance chain in this project:
 
@@ -70,7 +70,7 @@ Key files:
 
 - `include/pages/todo_page.h`, `src/pages/todo_page.c`: todo page public lifecycle API + private page logic (task state, callbacks, and widget composition).
 - `include/ui/ui_element.h`, `src/ui/ui_element.c`: base type, virtual ops contract, and shared border helpers.
-- `include/ui/ui_context.h`, `src/ui/ui_context.c`: dynamic element list, ownership, event/update/render dispatch.
+- `include/system/ui_runtime.h`, `src/system/ui_runtime.c`: dynamic element list, ownership, event/update/render dispatch.
 - `include/ui/ui_pane.h`, `src/ui/ui_pane.c`: rectangle fill + border visual group element.
 - `include/ui/ui_button.h`, `src/ui/ui_button.c`: clickable element with press/release semantics and callback.
 - `include/ui/ui_checkbox.h`, `src/ui/ui_checkbox.c`: labeled toggle control with boolean change callback.
@@ -78,7 +78,7 @@ Key files:
 - `include/ui/ui_hrule.h`, `src/ui/ui_hrule.c`: thin horizontal divider line with configurable inset.
 - `include/ui/ui_image.h`, `src/ui/ui_image.c`: image element with fallback texture behavior.
 - `include/ui/ui_slider.h`, `src/ui/ui_slider.c`: horizontal slider with min/max range and value callback.
-- `include/ui/ui_text_input.h`, `src/ui/ui_text_input.c`: single-line text field with ui_context-managed focus, keyboard input, and submit callback.
+- `include/ui/ui_text_input.h`, `src/ui/ui_text_input.c`: single-line text field with ui_runtime-managed focus, keyboard input, and submit callback.
 - `include/ui/ui_segment_group.h`, `src/ui/ui_segment_group.c`: segmented control (radio-button group) with selection callback.
 - `include/ui/ui_layout_container.h`, `src/ui/ui_layout_container.c`: vertical/horizontal stack container with auto-sizing.
 - `include/ui/ui_scroll_view.h`, `src/ui/ui_scroll_view.c`: scrollable viewport wrapper with mouse-wheel input and clip-rect rendering.
@@ -89,13 +89,13 @@ Key files:
 
 Per frame, `main.c` drives the UI system in this order:
 
-1. Poll SDL events and forward each to `ui_context_handle_event`.
+1. Poll SDL events and forward each to `ui_runtime_handle_event`.
 2. Call `todo_page_update()` for page-level per-frame work (for example, header clock refresh).
-3. Call `ui_context_update(delta_seconds)`.
-4. Clear renderer and call `ui_context_render(renderer)`.
+3. Call `ui_runtime_update(delta_seconds)`.
+4. Clear renderer and call `ui_runtime_render(renderer)`.
 5. Present frame.
 
-`ui_context` behavior rules:
+`ui_runtime` behavior rules:
 
 - Dispatch `handle_event` only for `enabled` elements.
 - Route text and keyboard events only to the currently focused element.
@@ -103,13 +103,13 @@ Per frame, `main.c` drives the UI system in this order:
 - Capture pointer interaction on left press and release capture on left release.
 - Dispatch `update` only for `enabled` elements.
 - Dispatch `render` only for `visible` elements.
-- Destroy all registered elements via each element's `destroy` op during `ui_context_destroy`.
+- Destroy all registered elements via each element's `destroy` op during `ui_runtime_destroy`.
 
 ### Ownership Rules
 
 - Element constructors (`ui_button_create`, `ui_pane_create`, etc.) allocate on the heap and return ownership to caller.
-- After `ui_context_add` succeeds, ownership transfers to `ui_context`.
-- `todo_page_create` registers page elements in `ui_context`; on any partial failure it rolls back and destroys already-registered page elements before returning `NULL`.
+- After `ui_runtime_add` succeeds, ownership transfers to `ui_runtime`.
+- `todo_page_create` registers page elements in `ui_runtime`; on any partial failure it rolls back and destroys already-registered page elements before returning `NULL`.
 - `todo_page_destroy` removes and destroys elements that were registered by the page, then frees page-owned task/model storage.
 
 ## Roadmap
@@ -117,7 +117,7 @@ Per frame, `main.c` drives the UI system in this order:
 This project intentionally stays minimal. The following capabilities are explicitly out of scope:
 
 1. **Real text rendering** — Widgets currently use `SDL_RenderDebugText` (fixed 8x8 monospace glyphs), and we do not plan to add full font loading/rendering systems.
-2. **Keyboard navigation and focus traversal** — Focus/capture routing exists in `ui_context`, but tab ordering, arrow-key traversal, and focus ring rendering are not planned.
+2. **Keyboard navigation and focus traversal** — Focus/capture routing exists in `ui_runtime`, but tab ordering, arrow-key traversal, and focus ring rendering are not planned.
 3. **Styling and theming** — Widget colors/padding/spacing remain construction-time values; a shared theme/style inheritance system is not planned.
 
 Potential future enhancements (still under consideration):

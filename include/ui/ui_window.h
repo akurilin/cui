@@ -27,7 +27,7 @@ typedef struct ui_window
  * - NULL on invalid arguments or allocation failure.
  *
  * Ownership/Lifecycle:
- * - Caller owns the returned pointer until transferred to ui_context.
+ * - Caller owns the returned pointer until transferred to ui_runtime.
  * - Destroying the element releases only the element itself.
  */
 ui_window *ui_window_create(const SDL_FRect *rect);

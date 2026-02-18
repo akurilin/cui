@@ -26,7 +26,7 @@ add_executable(
     src/pages/todo_page.c
     src/ui/ui_button.c
     src/ui/ui_checkbox.c
-    src/ui/ui_context.c
+    src/system/ui_runtime.c
     src/ui/ui_element.c
     src/ui/ui_fps_counter.c
     src/ui/ui_hrule.c

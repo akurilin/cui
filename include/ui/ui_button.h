@@ -35,7 +35,7 @@ typedef struct ui_button
  * - on_click/on_click_context: optional callback + user context
  *
  * Returns a heap-allocated button or NULL on allocation/validation failure.
- * Ownership transfers to caller (or ui_context after ui_context_add succeeds).
+ * Ownership transfers to caller (or ui_runtime after ui_runtime_add succeeds).
  */
 ui_button *ui_button_create(const SDL_FRect *rect, SDL_Color up_color, SDL_Color down_color,
                             const char *label, const SDL_Color *border_color,

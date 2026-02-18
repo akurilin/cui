@@ -44,7 +44,7 @@ typedef struct ui_hrule
  *
  * Ownership/Lifecycle:
  * - Caller owns the returned pointer until transferred to a layout container
- *   or ui_context.
+ *   or ui_runtime.
  */
 ui_hrule *ui_hrule_create(float thickness, SDL_Color color, float inset_fraction);
 

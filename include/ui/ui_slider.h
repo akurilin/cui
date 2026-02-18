@@ -56,8 +56,8 @@ typedef struct ui_slider
  * - NULL on invalid arguments or allocation failure
  *
  * Ownership:
- * - Caller owns the returned pointer until transferring ownership to ui_context
- *   via ui_context_add, after which ui_context_destroy releases it.
+ * - Caller owns the returned pointer until transferring ownership to ui_runtime
+ *   via ui_runtime_add, after which ui_runtime_destroy releases it.
  */
 ui_slider *ui_slider_create(const SDL_FRect *rect, float min_value, float max_value,
                             float initial_value, SDL_Color track_color, SDL_Color thumb_color,

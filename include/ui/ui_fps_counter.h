@@ -38,7 +38,7 @@ typedef struct ui_fps_counter
  * - When `base.parent` is non-NULL, this widget uses parent-relative insets
  *   with `align_h=UI_ALIGN_RIGHT` and `align_v=UI_ALIGN_BOTTOM`.
  *
- * Update requirement: ui_context_update must be called each frame with a real
+ * Update requirement: ui_runtime_update must be called each frame with a real
  * delta_seconds value, otherwise FPS output will not be meaningful.
  */
 ui_fps_counter *ui_fps_counter_create(int viewport_width, int viewport_height, float padding,

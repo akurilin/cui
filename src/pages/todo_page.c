@@ -35,8 +35,8 @@ typedef struct task_row_context
 
 struct todo_page
 {
-    ui_context *context;
-    // Tracks only elements added to ui_context by this page so teardown can
+    ui_runtime *context;
+    // Tracks only elements added to ui_runtime by this page so teardown can
     // remove exactly this page's registrations without touching others.
     ui_element *registered_elements[20];
     size_t registered_count;
@@ -131,16 +131,16 @@ static bool register_element(todo_page *page, ui_element *element)
         return false;
     }
 
-    if (!ui_context_add(page->context, element))
+    if (!ui_runtime_add(page->context, element))
     {
-        // If registration fails, ownership never transfers to ui_context.
+        // If registration fails, ownership never transfers to ui_runtime.
         destroy_element(element);
         return false;
     }
 
     if (page->registered_count >= SDL_arraysize(page->registered_elements))
     {
-        (void)ui_context_remove(page->context, element, true);
+        (void)ui_runtime_remove(page->context, element, true);
         return false;
     }
 
@@ -162,7 +162,7 @@ static void unregister_elements(todo_page *page)
     {
         ui_element *element = page->registered_elements[i - 1U];
         // Remove in reverse add order to mirror stack-like construction.
-        (void)ui_context_remove(page->context, element, true);
+        (void)ui_runtime_remove(page->context, element, true);
     }
     page->registered_count = 0U;
 }
@@ -823,7 +823,7 @@ bool todo_page_resize(todo_page *page, int viewport_width, int viewport_height)
     return true;
 }
 
-todo_page *todo_page_create(SDL_Window *window, ui_context *context, int viewport_width,
+todo_page *todo_page_create(SDL_Window *window, ui_runtime *context, int viewport_width,
                             int viewport_height)
 {
     if (window == NULL || context == NULL)

@@ -14,7 +14,7 @@ This repository is a minimal C + CMake starter focused on learning SDL-based UI 
 Retained-mode UI system with C-style polymorphism (struct embedding + vtable):
 
 - **`ui_element`** (`include/ui/ui_element.h`): base type with `SDL_FRect rect`, `visible`/`enabled` flags, and a `ui_element_ops` vtable (`handle_event`, optional `hit_test`, optional `can_focus`, optional `set_focus`, `update`, `render`, `destroy`).
-- **`ui_context`** (`include/ui/ui_context.h`): owns and dispatches all registered elements — routes keyboard/text to the focused element, routes pointer events by front-to-back hit testing, and tracks pointer capture for drag/press-release interactions.
+- **`ui_runtime`** (`include/system/ui_runtime.h`): owns and dispatches all registered elements — routes keyboard/text to the focused element, routes pointer events by front-to-back hit testing, and tracks pointer capture for drag/press-release interactions.
 - **Widgets**: `ui_pane` (background panel), `ui_button` (clickable with callback), `ui_text` (static label), `ui_fps_counter` (self-updating FPS display).
 
 Every concrete widget embeds `ui_element` as its first field for safe polymorphic casting. Use `SDL_PointInRectFloat` (from SDL3's `SDL_rect.h`) for hit-testing rather than hand-rolled helpers.
@@ -44,6 +44,8 @@ Equivalent raw CMake commands:
 - Naming: `snake_case` for functions/variables, descriptive filenames (for example, `ui_layout.c`).
 - Function names should start with a verb and make behavior/intent obvious (for example, `is_point_in_rect`, `render_button`, `update_layout`), avoiding ambiguous noun-like names.
 - Keep functions small and purpose-driven; add brief comments only where logic is non-obvious.
+- During refactors or code moves/renames, preserve existing comments when they remain accurate.
+- If code behavior, ownership, control flow, naming, or API contracts change, update all affected comments in the same change; remove or rewrite stale comments instead of leaving mismatches.
 - When adding new functionality declarations in header files, document the public API thoroughly: purpose, behavior/contract, parameters, return value, and ownership/lifecycle expectations for future maintainers.
 
 Formatting and linting are configured:

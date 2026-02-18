@@ -37,7 +37,7 @@ typedef struct ui_image
  *
  * Returns a heap-allocated ui_image, or NULL if allocation fails, renderer
  * is NULL, or both the requested image and fallback image cannot be loaded.
- * Ownership transfers to caller (or ui_context after ui_context_add
+ * Ownership transfers to caller (or ui_runtime after ui_runtime_add
  * succeeds).
  */
 ui_image *ui_image_create(SDL_Renderer *renderer, float x, float y, float w, float h,

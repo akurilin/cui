@@ -1,5 +1,5 @@
-#ifndef UI_CONTEXT_H
-#define UI_CONTEXT_H
+#ifndef UI_RUNTIME_H
+#define UI_RUNTIME_H
 
 #include "ui/ui_element.h"
 
@@ -11,34 +11,34 @@
  * Why this exists: centralizing event dispatch, update, and render keeps main
  * loops simple and ensures controls are processed consistently.
  */
-typedef struct ui_context
+typedef struct ui_runtime
 {
     ui_element **elements;
     size_t element_count;
     size_t element_capacity;
     ui_element *focused_element;
     ui_element *captured_element;
-} ui_context;
+} ui_runtime;
 
 /*
  * Initialize an empty context.
  * Returns false if context is NULL.
  */
-bool ui_context_init(ui_context *context);
+bool ui_runtime_init(ui_runtime *context);
 
 /*
  * Destroy all registered elements (via their destroy op) and free context storage.
  * Safe to call with NULL.
  */
-void ui_context_destroy(ui_context *context);
+void ui_runtime_destroy(ui_runtime *context);
 
 /*
  * Add one element to the context in render/event order.
  *
  * Ownership note: after successful add, the context owns the element and is
- * responsible for destroying it in ui_context_destroy.
+ * responsible for destroying it in ui_runtime_destroy.
  */
-bool ui_context_add(ui_context *context, ui_element *element);
+bool ui_runtime_add(ui_runtime *context, ui_element *element);
 
 /*
  * Remove one element from the context.
@@ -57,7 +57,7 @@ bool ui_context_add(ui_context *context, ui_element *element);
  * - true when an element was found and removed
  * - false when context/element is invalid or element is not present
  */
-bool ui_context_remove(ui_context *context, ui_element *element, bool destroy_element);
+bool ui_runtime_remove(ui_runtime *context, ui_element *element, bool destroy_element);
 
 /*
  * Dispatch a single SDL event using centralized input routing.
@@ -69,17 +69,17 @@ bool ui_context_remove(ui_context *context, ui_element *element, bool destroy_el
  * - Left mouse press captures the handling element until left release.
  * - Clicking a focusable element focuses it; clicking elsewhere clears focus.
  */
-void ui_context_handle_event(ui_context *context, const SDL_Event *event);
+void ui_runtime_handle_event(ui_runtime *context, const SDL_Event *event);
 
 /*
  * Call update on each enabled element.
  * delta_seconds should be frame time in seconds.
  */
-void ui_context_update(ui_context *context, float delta_seconds);
+void ui_runtime_update(ui_runtime *context, float delta_seconds);
 
 /*
  * Call render on each visible element in insertion order.
  */
-void ui_context_render(const ui_context *context, SDL_Renderer *renderer);
+void ui_runtime_render(const ui_runtime *context, SDL_Renderer *renderer);
 
 #endif

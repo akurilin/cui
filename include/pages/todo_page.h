@@ -3,7 +3,7 @@
 
 #include <SDL3/SDL.h>
 
-#include "ui/ui_context.h"
+#include "system/ui_runtime.h"
 
 /*
  * Opaque todo-page state object.
@@ -44,10 +44,10 @@ typedef struct todo_page todo_page;
  * Ownership/lifecycle:
  * - Caller owns the returned `todo_page *` and must release it with
  *   `todo_page_destroy`.
- * - The `ui_context` retains ownership of page UI elements while they remain
+ * - The `ui_runtime` retains ownership of page UI elements while they remain
  *   registered.
  */
-todo_page *todo_page_create(SDL_Window *window, ui_context *context, int viewport_width,
+todo_page *todo_page_create(SDL_Window *window, ui_runtime *context, int viewport_width,
                             int viewport_height);
 
 /*
@@ -96,7 +96,7 @@ bool todo_page_update(todo_page *page);
  * Destroy a todo page and release its resources.
  *
  * Purpose:
- * - Unregister and destroy all page elements from their `ui_context`.
+ * - Unregister and destroy all page elements from their `ui_runtime`.
  * - Free todo model storage and callback context arrays.
  * - Free the page object itself.
  *
@@ -105,7 +105,7 @@ bool todo_page_update(todo_page *page);
  *
  * Ownership/lifecycle:
  * - After this call, `page` is invalid and must not be reused.
- * - This function does not destroy the `ui_context` itself.
+ * - This function does not destroy the `ui_runtime` itself.
  */
 void todo_page_destroy(todo_page *page);
 

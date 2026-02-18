@@ -41,7 +41,7 @@ typedef struct ui_scroll_view
  * - border_color: optional border around the viewport (NULL disables).
  *
  * Returns a heap-allocated scroll view or NULL on failure.
- * Ownership transfers to caller (or to ui_context after ui_context_add).
+ * Ownership transfers to caller (or to ui_runtime after ui_runtime_add).
  */
 ui_scroll_view *ui_scroll_view_create(const SDL_FRect *rect, ui_element *child, float scroll_step,
                                       const SDL_Color *border_color);

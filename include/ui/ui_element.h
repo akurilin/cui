@@ -63,7 +63,7 @@ typedef struct ui_element_ops
 
     /*
      * Test whether a point is inside this element's interactive region.
-     * When NULL, ui_context falls back to ui_element_hit_test (rect bounds).
+     * When NULL, ui_runtime falls back to ui_element_hit_test (rect bounds).
      */
     bool (*hit_test)(const ui_element *element, const SDL_FPoint *point);
 
@@ -75,7 +75,7 @@ typedef struct ui_element_ops
 
     /*
      * Notify the element that focus changed.
-     * Called by ui_context only for focusable elements.
+     * Called by ui_runtime only for focusable elements.
      */
     void (*set_focus)(ui_element *element, bool focused);
 
@@ -159,7 +159,7 @@ void ui_element_render_inner_border(SDL_Renderer *renderer, const SDL_FRect *rec
 SDL_FRect ui_element_screen_rect(const ui_element *element);
 
 /*
- * Default point-in-rect hit test used by ui_context for pointer routing.
+ * Default point-in-rect hit test used by ui_runtime for pointer routing.
  *
  * Uses ui_element_screen_rect() so hit testing works correctly for elements
  * with parent-relative coordinates.

@@ -69,8 +69,8 @@ struct ui_segment_group
  * - NULL on invalid arguments or allocation failure
  *
  * Ownership:
- * - Caller owns the returned pointer until transferring ownership to ui_context
- *   via ui_context_add, after which ui_context_destroy releases it.
+ * - Caller owns the returned pointer until transferring ownership to ui_runtime
+ *   via ui_runtime_add, after which ui_runtime_destroy releases it.
  */
 ui_segment_group *
 ui_segment_group_create(const SDL_FRect *rect, const char **labels, size_t segment_count,

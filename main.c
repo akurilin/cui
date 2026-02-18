@@ -1,7 +1,7 @@
 #include <SDL3/SDL.h>
 
 #include "pages/todo_page.h"
-#include "ui/ui_context.h"
+#include "system/ui_runtime.h"
 
 #include <stdbool.h>
 
@@ -59,10 +59,10 @@ int main(void)
     const SDL_Color color_bg = {241, 241, 238, 255};
 
     // Root UI dispatcher/owner for all registered elements.
-    ui_context context;
-    if (!ui_context_init(&context))
+    ui_runtime context;
+    if (!ui_runtime_init(&context))
     {
-        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "ui_context_init failed");
+        SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "ui_runtime_init failed");
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
         SDL_Quit();
@@ -74,7 +74,7 @@ int main(void)
     if (page == NULL)
     {
         SDL_LogError(SDL_LOG_CATEGORY_APPLICATION, "Failed to create todo page");
-        ui_context_destroy(&context);
+        ui_runtime_destroy(&context);
         SDL_DestroyRenderer(renderer);
         SDL_DestroyWindow(window);
         SDL_Quit();
@@ -108,7 +108,7 @@ int main(void)
                                                  SDL_LOGICAL_PRESENTATION_LETTERBOX);
                 todo_page_resize(page, new_w, new_h);
             }
-            ui_context_handle_event(&context, &event);
+            ui_runtime_handle_event(&context, &event);
         }
 
         // Phase 2: page-specific per-frame logic (outside widget vtables).
@@ -118,19 +118,19 @@ int main(void)
             running = false;
         }
 
-        // Phase 3: widget updates via ui_context.
-        ui_context_update(&context, delta_seconds);
+        // Phase 3: widget updates via ui_runtime.
+        ui_runtime_update(&context, delta_seconds);
 
         // Phase 4: draw frame.
         SDL_SetRenderDrawColor(renderer, color_bg.r, color_bg.g, color_bg.b, color_bg.a);
         SDL_RenderClear(renderer);
-        ui_context_render(&context, renderer);
+        ui_runtime_render(&context, renderer);
         SDL_RenderPresent(renderer);
     }
 
     // Teardown order: page -> context -> renderer/window -> SDL runtime.
     todo_page_destroy(page);
-    ui_context_destroy(&context);
+    ui_runtime_destroy(&context);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();

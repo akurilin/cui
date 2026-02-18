@@ -22,8 +22,8 @@ typedef void (*text_input_submit_handler)(const char *value, void *context);
 /*
  * Single-line text input field with click-to-focus keyboard input.
  *
- * Focus model: ui_context-managed. Clicking a focusable text input focuses it,
- * and clicking elsewhere clears focus. ui_context notifies this element when
+ * Focus model: ui_runtime-managed. Clicking a focusable text input focuses it,
+ * and clicking elsewhere clears focus. ui_runtime notifies this element when
  * focus changes so SDL text input start/stop stays centralized and consistent.
  * When focused, a blinking caret is drawn at the end of the text.
  *
@@ -70,8 +70,8 @@ typedef struct ui_text_input
  * - on_submit/on_submit_context: optional callback fired on Enter/Return.
  *
  * Returns a heap-allocated text input or NULL on allocation/validation
- * failure. Ownership transfers to caller (or to ui_context after a
- * successful ui_context_add call).
+ * failure. Ownership transfers to caller (or to ui_runtime after a
+ * successful ui_runtime_add call).
  */
 ui_text_input *ui_text_input_create(const SDL_FRect *rect, SDL_Color text_color,
                                     SDL_Color background_color, SDL_Color border_color,

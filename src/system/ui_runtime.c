@@ -1,4 +1,4 @@
-#include "ui/ui_context.h"
+#include "system/ui_runtime.h"
 
 #include <stdlib.h>
 
@@ -71,7 +71,7 @@ static bool hit_test_element(const ui_element *element, const SDL_FPoint *point)
     return ui_element_hit_test(element, point);
 }
 
-static void set_focused_element(ui_context *context, ui_element *next_focus)
+static void set_focused_element(ui_runtime *context, ui_element *next_focus)
 {
     if (context == NULL || context->focused_element == next_focus)
     {
@@ -96,7 +96,7 @@ static void set_focused_element(ui_context *context, ui_element *next_focus)
     }
 }
 
-static ui_element *find_top_focusable_at(const ui_context *context, const SDL_FPoint *point)
+static ui_element *find_top_focusable_at(const ui_runtime *context, const SDL_FPoint *point)
 {
     if (context == NULL || point == NULL)
     {
@@ -116,7 +116,7 @@ static ui_element *find_top_focusable_at(const ui_context *context, const SDL_FP
     return NULL;
 }
 
-static ui_element *dispatch_pointer_event(ui_context *context, const SDL_Event *event,
+static ui_element *dispatch_pointer_event(ui_runtime *context, const SDL_Event *event,
                                           const SDL_FPoint *point)
 {
     if (context == NULL || event == NULL || point == NULL)
@@ -156,7 +156,7 @@ static bool dispatch_to_element(ui_element *element, const SDL_Event *event)
     return element->ops->handle_event(element, event);
 }
 
-bool ui_context_init(ui_context *context)
+bool ui_runtime_init(ui_runtime *context)
 {
     if (context == NULL)
     {
@@ -171,7 +171,7 @@ bool ui_context_init(ui_context *context)
     return true;
 }
 
-void ui_context_destroy(ui_context *context)
+void ui_runtime_destroy(ui_runtime *context)
 {
     if (context == NULL)
     {
@@ -198,7 +198,7 @@ void ui_context_destroy(ui_context *context)
     context->captured_element = NULL;
 }
 
-bool ui_context_add(ui_context *context, ui_element *element)
+bool ui_runtime_add(ui_runtime *context, ui_element *element)
 {
     if (context == NULL || !is_valid_element(element))
     {
@@ -222,7 +222,7 @@ bool ui_context_add(ui_context *context, ui_element *element)
     return true;
 }
 
-bool ui_context_remove(ui_context *context, ui_element *element, bool destroy_element)
+bool ui_runtime_remove(ui_runtime *context, ui_element *element, bool destroy_element)
 {
     if (context == NULL || !is_valid_element(element))
     {
@@ -261,7 +261,7 @@ bool ui_context_remove(ui_context *context, ui_element *element, bool destroy_el
     return false;
 }
 
-void ui_context_handle_event(ui_context *context, const SDL_Event *event)
+void ui_runtime_handle_event(ui_runtime *context, const SDL_Event *event)
 {
     if (context == NULL || event == NULL)
     {
@@ -326,7 +326,7 @@ void ui_context_handle_event(ui_context *context, const SDL_Event *event)
     }
 }
 
-void ui_context_update(ui_context *context, float delta_seconds)
+void ui_runtime_update(ui_runtime *context, float delta_seconds)
 {
     if (context == NULL)
     {
@@ -344,7 +344,7 @@ void ui_context_update(ui_context *context, float delta_seconds)
     }
 }
 
-void ui_context_render(const ui_context *context, SDL_Renderer *renderer)
+void ui_runtime_render(const ui_runtime *context, SDL_Renderer *renderer)
 {
     if (context == NULL || renderer == NULL)
     {

@@ -61,8 +61,8 @@ typedef struct ui_layout_container
  * - NULL on invalid arguments or allocation failure
  *
  * Ownership/Lifecycle:
- * - Caller owns the returned pointer until transferred to ui_context via
- *   ui_context_add.
+ * - Caller owns the returned pointer until transferred to ui_runtime via
+ *   ui_runtime_add.
  * - The container owns every child added through ui_layout_container_add_child.
  * - Destroying the container destroys all registered children.
  */
