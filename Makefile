@@ -1,4 +1,4 @@
-.PHONY: configure build test run clean check-tools format format-check lint analyze precommit install-hooks
+.PHONY: configure build test run clean check-tools format format-check lint analyze precommit install-hooks submodules-init submodules-update
 
 C_SOURCES := $(shell find . -type f -name '*.c' -not -path './build/*' -not -path './vendored/*')
 C_HEADERS := $(shell find . -type f -name '*.h' -not -path './build/*' -not -path './vendored/*')
@@ -69,3 +69,9 @@ precommit: format-check lint analyze
 
 install-hooks:
 	git config core.hooksPath .githooks
+
+submodules-init:
+	git submodule update --init --recursive
+
+submodules-update:
+	git submodule update --init --recursive --remote

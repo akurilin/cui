@@ -16,7 +16,11 @@ SDL and SDL_image are brought in as Git submodules at `vendored/SDL` and
 
 ## Architecture Overview
 
-The codebase is split into a reusable UI kit (`include/ui`, `src/ui`) and an example app layer (`include/pages`, `src/pages`) hosted by a small application shell (`main.c`).
+The codebase is split into:
+
+- a reusable UI kit (`include/ui`, `src/ui`) for concrete widgets and shared element primitives,
+- a UI system/runtime layer (`include/system`, `src/system`) for orchestration and dispatch,
+- an example app layer (`include/pages`, `src/pages`) hosted by a small application shell (`main.c`).
 
 - `main.c` is composition/root wiring only: create window/renderer, initialize `ui_runtime`, create the active page, and run the main loop.
 - `todo_page` is the sample TODO app and owns todo-specific model state plus screen-level UI composition.
@@ -148,6 +152,8 @@ make lint     # run clang-tidy checks
 make analyze  # run Clang Static Analyzer for the cui target via scan-build
 make precommit # run all commit-gating checks
 make install-hooks # enable repo-managed Git hooks
+make submodules-init   # initialize and fetch vendored submodules
+make submodules-update # update submodules to latest remote commits
 ```
 
 ## Linting, Formatting, and Hooks:
@@ -191,26 +197,9 @@ on your generator/configuration, run one of:
 
 ## Submodule workflow
 
-Clone with submodules:
+Use Makefile commands:
 
 ```bash
-git clone --recurse-submodules <repo-url>
-```
-
-If you already cloned the repo:
-
-```bash
-git submodule update --init --recursive
-```
-
-When pulling new commits from this repo, also refresh submodules:
-
-```bash
-git pull --recurse-submodules
-```
-
-If submodules show as modified and you want to reset them to the commits pinned by this repo:
-
-```bash
-git submodule update --init vendored/SDL vendored/SDL_image
+make submodules-init
+make submodules-update
 ```
