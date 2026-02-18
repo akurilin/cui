@@ -851,22 +851,15 @@ todo_page *todo_page_create(SDL_Window *window, ui_runtime *context, int viewpor
     page->color_button_down = (SDL_Color){86, 86, 94, 255};
     const SDL_Color color_accent = {211, 92, 52, 255};
 
-    // Container dimensions derive from viewport; leaf elements use fixed sizes.
-    const float content_width = compute_content_width(page);
-    const float header_left_w = content_width - HEADER_RIGHT_W;
-    const float header_right_x = LAYOUT_MARGIN + header_left_w;
+    // Create with stable geometry first; viewport-dependent geometry is applied
+    // once via relayout_page() after all required elements exist.
     const float input_field_x = LAYOUT_MARGIN + ICON_CELL_W;
-    const float add_button_x = LAYOUT_MARGIN + content_width - ADD_BUTTON_W;
-    const float filter_x = LAYOUT_MARGIN + content_width - FILTER_W;
-    const float task_list_height = (float)viewport_height - LIST_TOP_Y - FOOTER_RESERVE;
-    const float footer_rule_y = LIST_TOP_Y + task_list_height + FOOTER_GAP / 2.0F;
-    const float footer_y = footer_rule_y + FOOTER_GAP;
 
     page->header_left =
-        ui_pane_create(&(SDL_FRect){LAYOUT_MARGIN, LAYOUT_MARGIN, header_left_w, HEADER_HEIGHT},
-                       color_panel, &page->color_ink);
+        ui_pane_create(&(SDL_FRect){LAYOUT_MARGIN, LAYOUT_MARGIN, 1.0F, HEADER_HEIGHT}, color_panel,
+                       &page->color_ink);
     page->header_right =
-        ui_pane_create(&(SDL_FRect){header_right_x, LAYOUT_MARGIN, HEADER_RIGHT_W, HEADER_HEIGHT},
+        ui_pane_create(&(SDL_FRect){LAYOUT_MARGIN, LAYOUT_MARGIN, HEADER_RIGHT_W, HEADER_HEIGHT},
                        color_panel, &page->color_ink);
 
     page->title_text = ui_text_create(LAYOUT_MARGIN + 22.0F, LAYOUT_MARGIN + 28.0F,
@@ -874,7 +867,7 @@ todo_page *todo_page_create(SDL_Window *window, ui_runtime *context, int viewpor
 
     char header_datetime[40];
     format_header_datetime(header_datetime, sizeof(header_datetime));
-    page->datetime_text = ui_text_create(header_right_x + 24.0F, LAYOUT_MARGIN + 28.0F,
+    page->datetime_text = ui_text_create(LAYOUT_MARGIN + 24.0F, LAYOUT_MARGIN + 28.0F,
                                          header_datetime, page->color_muted, NULL);
 
     page->icon_cell =
@@ -889,14 +882,14 @@ todo_page *todo_page_create(SDL_Window *window, ui_runtime *context, int viewpor
         page->color_muted, window, handle_task_input_submit, page);
 
     page->add_button = ui_button_create(
-        &(SDL_FRect){add_button_x, INPUT_ROW_Y, ADD_BUTTON_W, INPUT_ROW_HEIGHT}, color_button_dark,
+        &(SDL_FRect){LAYOUT_MARGIN, INPUT_ROW_Y, ADD_BUTTON_W, INPUT_ROW_HEIGHT}, color_button_dark,
         page->color_button_down, "ADD", &page->color_ink, handle_add_button_click, page);
 
     page->stats_text =
         ui_text_create(LAYOUT_MARGIN, STATS_ROW_Y, "0 ACTIVE - 0 DONE", page->color_ink, NULL);
 
     page->filter_group = ui_segment_group_create(
-        &(SDL_FRect){filter_x, STATS_ROW_Y, FILTER_W, FILTER_H}, TODO_FILTER_LABELS,
+        &(SDL_FRect){LAYOUT_MARGIN, STATS_ROW_Y, FILTER_W, FILTER_H}, TODO_FILTER_LABELS,
         SDL_arraysize(TODO_FILTER_LABELS), 0U, color_panel, color_button_dark,
         page->color_button_down, page->color_muted, color_panel, &page->color_ink,
         handle_filter_change, page);
@@ -904,39 +897,35 @@ todo_page *todo_page_create(SDL_Window *window, ui_runtime *context, int viewpor
     page->top_rule = ui_hrule_create(1.0F, page->color_ink, 0.0F);
     if (page->top_rule != NULL)
     {
-        page->top_rule->base.rect =
-            (SDL_FRect){LAYOUT_MARGIN, LIST_TOP_Y - 6.0F, content_width, 1.0F};
+        page->top_rule->base.rect = (SDL_FRect){LAYOUT_MARGIN, LIST_TOP_Y - 6.0F, 1.0F, 1.0F};
     }
 
-    page->list_frame =
-        ui_pane_create(&(SDL_FRect){LAYOUT_MARGIN, LIST_TOP_Y, content_width, task_list_height},
-                       color_panel, &page->color_ink);
+    page->list_frame = ui_pane_create(&(SDL_FRect){LAYOUT_MARGIN, LIST_TOP_Y, 1.0F, 1.0F},
+                                      color_panel, &page->color_ink);
 
     page->rows_container = ui_layout_container_create(
-        &(SDL_FRect){LAYOUT_MARGIN, LIST_TOP_Y, content_width, task_list_height},
-        UI_LAYOUT_AXIS_VERTICAL, NULL);
+        &(SDL_FRect){LAYOUT_MARGIN, LIST_TOP_Y, 1.0F, 1.0F}, UI_LAYOUT_AXIS_VERTICAL, NULL);
 
     if (page->rows_container != NULL)
     {
         // Scroll view takes ownership of rows_container on success.
-        page->scroll_view = ui_scroll_view_create(
-            &(SDL_FRect){LAYOUT_MARGIN, LIST_TOP_Y, content_width, task_list_height},
-            (ui_element *)page->rows_container, SCROLL_STEP, NULL);
+        page->scroll_view =
+            ui_scroll_view_create(&(SDL_FRect){LAYOUT_MARGIN, LIST_TOP_Y, 1.0F, 1.0F},
+                                  (ui_element *)page->rows_container, SCROLL_STEP, NULL);
     }
 
     page->bottom_rule = ui_hrule_create(1.0F, page->color_ink, 0.0F);
     if (page->bottom_rule != NULL)
     {
-        page->bottom_rule->base.rect =
-            (SDL_FRect){LAYOUT_MARGIN, footer_rule_y, content_width, 1.0F};
+        page->bottom_rule->base.rect = (SDL_FRect){LAYOUT_MARGIN, LIST_TOP_Y, 1.0F, 1.0F};
     }
 
     page->clear_done = ui_button_create(
-        &(SDL_FRect){LAYOUT_MARGIN, footer_y, CLEAR_BUTTON_W, CLEAR_BUTTON_H}, color_button_dark,
+        &(SDL_FRect){LAYOUT_MARGIN, LIST_TOP_Y, CLEAR_BUTTON_W, CLEAR_BUTTON_H}, color_button_dark,
         page->color_button_down, "CLEAR DONE", &page->color_ink, handle_clear_button_click, page);
 
-    page->remaining_text = ui_text_create(LAYOUT_MARGIN + content_width - 168.0F, footer_y + 18.0F,
-                                          "0 REMAINING", page->color_muted, NULL);
+    page->remaining_text =
+        ui_text_create(LAYOUT_MARGIN, LIST_TOP_Y, "0 REMAINING", page->color_muted, NULL);
 
     page->fps_counter =
         ui_fps_counter_create(viewport_width, viewport_height, 12.0F, page->color_ink, NULL);
@@ -988,6 +977,9 @@ todo_page *todo_page_create(SDL_Window *window, ui_runtime *context, int viewpor
         free(page);
         return NULL;
     }
+
+    // Single source of truth for viewport-dependent geometry at startup.
+    relayout_page(page);
 
     if (!register_element(page, (ui_element *)page->header_left) ||
         !register_element(page, (ui_element *)page->header_right) ||

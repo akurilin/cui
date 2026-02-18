@@ -109,6 +109,47 @@ Per frame, `main.c` drives the UI system in this order:
 - Dispatch `render` only for `visible` elements.
 - Destroy all registered elements via each element's `destroy` op during `ui_runtime_destroy`.
 
+### Startup vs Resize Control Flow
+
+These are two distinct flows in the current system.
+
+#### 1) First launch: how elements get their initial size/position
+
+1. `main.c` initializes SDL + window + renderer, initializes `ui_runtime`, then calls `todo_page_create(window, &context, width, height)`.
+2. `todo_page_create` stores viewport dimensions and computes top-level geometry (content width, header widths, list height, footer positions).
+3. Most top-level widgets are created with explicit rects derived from those computed values (header, input row, rules, list frame, footer, etc.).
+4. The task list body is built as:
+   - `ui_scroll_view` (viewport/clipping),
+   - containing a vertical `ui_layout_container` (`rows_container`),
+   - containing one horizontal `ui_layout_container` per task row.
+5. Each task row creates leaf controls (number, checkbox, title, time, delete button) with fixed row/column dimensions.
+6. Page-owned elements are registered into `ui_runtime` (`ui_runtime_add`), transferring ownership.
+7. During frame updates, `ui_scroll_view` and `ui_layout_container` run layout passes:
+   - scroll view positions/stretches child content to viewport width,
+   - layout containers compute child x/y/w/h (vertical or horizontal stacking),
+   - vertical containers auto-size content height from children.
+8. Absolute render/hit-test rects are resolved from parent-relative rects via parent chain + alignment anchors (`ui_element_screen_rect`).
+
+In short: initial geometry is seeded by page code, then refined every frame by container layout passes.
+
+#### 2) Runtime resize: user drags window
+
+1. SDL emits `SDL_EVENT_WINDOW_RESIZED`.
+2. `main.c` handles it by:
+   - updating renderer logical presentation to the new logical size,
+   - calling `todo_page_resize(page, new_w, new_h)`.
+3. `todo_page_resize` updates page viewport fields and calls `relayout_page`.
+4. `relayout_page` recomputes and writes top-level rects:
+   - stretches/shifts header panes,
+   - right-anchors add/filter controls,
+   - resizes list frame + scroll view + rows container,
+   - repositions footer elements,
+   - updates window-root/fps anchoring dimensions.
+5. Event processing and the subsequent `ui_runtime_update` pass trigger container layout again, so row internals and scroll bounds are recalculated under the new dimensions.
+6. `ui_runtime_render` then draws the updated layout for that frame.
+
+In short: resize updates page-level geometry immediately, and container-based child layout is re-applied during event/update passes before render.
+
 ### Ownership Rules
 
 - Element constructors (`ui_button_create`, `ui_pane_create`, etc.) allocate on the heap and return ownership to caller.
