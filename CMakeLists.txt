@@ -58,6 +58,7 @@ set(APP_SOURCES
     main.c
     ${PAGE_SOURCE_FILES}
     ${PAGE_INDEX_FILE}
+    src/pages/page_shell.c
     src/ui/ui_button.c
     src/ui/ui_checkbox.c
     src/system/ui_runtime.c

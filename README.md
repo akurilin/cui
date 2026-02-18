@@ -36,6 +36,7 @@ The codebase is split into:
 - `showcase_page` is a one-screen widget gallery used to validate and demo all built-in controls.
 - `ui_runtime` is the lifecycle owner + dispatcher for all elements.
 - `ui_element` is the common base interface for polymorphism in C.
+- `app_page_shell` is the shared page scaffold that creates/registers a mandatory `ui_window` root and centralizes page element teardown.
 
 ### UI "Inheritance" Model (C-style)
 
@@ -83,6 +84,7 @@ Children track a **parent pointer and alignment anchors** for relative positioni
 Key files:
 
 - `include/pages/app_page.h`: generic page-ops interface plus build-generated page table declarations.
+- `include/pages/page_shell.h`, `src/pages/page_shell.c`: shared page shell with mandatory root-window setup/resize, shared measure/arrange helpers, and runtime registration teardown helpers.
 - `include/pages/corners_page.h`, `src/pages/corners_page.c`: resize-anchor test page with eight edge/corner-aligned buttons.
 - `include/pages/showcase_page.h`, `src/pages/showcase_page.c`: all-widgets demo page with interactive controls inside a scrollable layout.
 - `include/pages/todo_page.h`, `src/pages/todo_page.c`: todo page public lifecycle API + private page logic (task state, callbacks, and widget composition).
@@ -146,7 +148,7 @@ These are two distinct flows in the current system.
    - containing a vertical `ui_layout_container` (`rows_container`),
    - containing one horizontal `ui_layout_container` per task row.
 5. Each task row creates leaf controls (number, checkbox, title, time, delete button) with fixed row/column dimensions.
-6. `todo_page` registers a single `ui_window` root into `ui_runtime`; the root owns all page elements as children.
+6. Every page initializes `app_page_shell`, which creates/registers a single `ui_window` root into `ui_runtime`; that root owns the page element tree.
 7. `todo_page` performs an explicit page layout pass (`measure_page_layout` + `arrange_page_layout`):
    - top-level panes/controls are measured/arranged from viewport-derived geometry,
    - the task-list `ui_scroll_view` is measured/arranged with the list viewport rect,

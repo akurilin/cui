@@ -1,5 +1,6 @@
 #include "pages/todo_page.h"
 
+#include "pages/page_shell.h"
 #include "ui/ui_button.h"
 #include "ui/ui_checkbox.h"
 #include "ui/ui_fps_counter.h"
@@ -10,7 +11,6 @@
 #include "ui/ui_segment_group.h"
 #include "ui/ui_text.h"
 #include "ui/ui_text_input.h"
-#include "ui/ui_window.h"
 #include "util/fail_fast.h"
 #include "util/string_util.h"
 
@@ -36,11 +36,7 @@ typedef struct task_row_context
 
 struct todo_page
 {
-    ui_runtime *context;
-    // Tracks only elements added to ui_runtime by this page so teardown can
-    // remove exactly this page's registrations without touching others.
-    ui_element *registered_elements[20];
-    size_t registered_count;
+    app_page_shell shell;
 
     todo_task *tasks;
     size_t task_count;
@@ -68,7 +64,6 @@ struct todo_page
     ui_layout_container *rows_container;
     ui_button *clear_done;
     ui_fps_counter *fps_counter;
-    ui_window *window_root;
     ui_text *stats_text;
     ui_text *remaining_text;
     ui_text_input *task_input;
@@ -138,63 +133,17 @@ typedef struct todo_page_layout
     float footer_y;
 } todo_page_layout;
 
-static void measure_and_arrange_element(ui_element *element, const SDL_FRect *rect)
-{
-    if (element == NULL || rect == NULL)
-    {
-        fail_fast("todo_page: invalid measure_and_arrange_element input");
-    }
-
-    ui_element_measure(element, rect);
-    SDL_FRect final_rect = *rect;
-    if (element->ops != NULL && element->ops->measure != NULL)
-    {
-        final_rect.w = element->rect.w;
-        final_rect.h = element->rect.h;
-    }
-    ui_element_arrange(element, &final_rect);
-}
-
-/*
- * Register one page-owned element into the UI context and track it for teardown.
- */
-static void register_element(todo_page *page, ui_element *element)
-{
-    if (page == NULL || page->context == NULL || element == NULL)
-    {
-        fail_fast("todo_page: invalid register_element input");
-    }
-
-    if (!ui_runtime_add(page->context, element))
-    {
-        fail_fast("todo_page: ui_runtime_add failed during registration");
-    }
-
-    if (page->registered_count >= SDL_arraysize(page->registered_elements))
-    {
-        fail_fast("todo_page: registered element tracker capacity exceeded");
-    }
-
-    page->registered_elements[page->registered_count++] = element;
-}
-
 /*
  * Remove and destroy all elements this page registered in reverse add order.
  */
 static void unregister_elements(todo_page *page)
 {
-    if (page == NULL || page->context == NULL)
+    if (page == NULL)
     {
         fail_fast("todo_page: invalid state in unregister_elements");
     }
 
-    for (size_t i = page->registered_count; i > 0U; --i)
-    {
-        ui_element *element = page->registered_elements[i - 1U];
-        // Remove in reverse add order to mirror stack-like construction.
-        (void)ui_runtime_remove(page->context, element, true);
-    }
-    page->registered_count = 0U;
+    app_page_shell_unregister_all(&page->shell, "todo_page");
 }
 
 /*
@@ -213,17 +162,14 @@ static void add_child_or_fail(ui_layout_container *container, ui_element *child)
     }
 }
 
-static void add_window_child_or_fail(ui_window *window, ui_element *child)
+static void add_window_child_or_fail(todo_page *page, ui_element *child)
 {
-    if (window == NULL || child == NULL)
+    if (page == NULL || child == NULL)
     {
         fail_fast("todo_page: invalid window child add input");
     }
 
-    if (!ui_window_add_child(window, child))
-    {
-        fail_fast("todo_page: ui_window_add_child failed");
-    }
+    app_page_shell_add_window_child(&page->shell, child, "todo_page");
 }
 
 /*
@@ -797,81 +743,97 @@ static void arrange_header_section(todo_page *page, const todo_page_layout *layo
 {
     const SDL_FRect header_left_rect = {LAYOUT_MARGIN, LAYOUT_MARGIN, layout->header_left_w,
                                         HEADER_HEIGHT};
-    measure_and_arrange_element((ui_element *)page->header_left, &header_left_rect);
+    app_page_shell_measure_and_arrange_element((ui_element *)page->header_left, &header_left_rect,
+                                               "todo_page");
 
     const SDL_FRect header_right_rect = {layout->header_right_x, LAYOUT_MARGIN, HEADER_RIGHT_W,
                                          HEADER_HEIGHT};
-    measure_and_arrange_element((ui_element *)page->header_right, &header_right_rect);
+    app_page_shell_measure_and_arrange_element((ui_element *)page->header_right, &header_right_rect,
+                                               "todo_page");
 
     const SDL_FRect title_rect = {TITLE_TEXT_X, TITLE_TEXT_Y, page->title_text->base.rect.w,
                                   page->title_text->base.rect.h};
-    measure_and_arrange_element((ui_element *)page->title_text, &title_rect);
+    app_page_shell_measure_and_arrange_element((ui_element *)page->title_text, &title_rect,
+                                               "todo_page");
 
     const SDL_FRect datetime_rect = {DATETIME_TEXT_X, DATETIME_TEXT_Y,
                                      page->datetime_text->base.rect.w,
                                      page->datetime_text->base.rect.h};
-    measure_and_arrange_element((ui_element *)page->datetime_text, &datetime_rect);
+    app_page_shell_measure_and_arrange_element((ui_element *)page->datetime_text, &datetime_rect,
+                                               "todo_page");
 }
 
 static void arrange_input_section(todo_page *page, const todo_page_layout *layout)
 {
     const SDL_FRect icon_cell_rect = {LAYOUT_MARGIN, INPUT_ROW_Y, ICON_CELL_W, INPUT_ROW_HEIGHT};
-    measure_and_arrange_element((ui_element *)page->icon_cell, &icon_cell_rect);
+    app_page_shell_measure_and_arrange_element((ui_element *)page->icon_cell, &icon_cell_rect,
+                                               "todo_page");
 
     const SDL_FRect icon_arrow_rect = {ICON_ARROW_X, ICON_ARROW_Y, page->icon_arrow->base.rect.w,
                                        page->icon_arrow->base.rect.h};
-    measure_and_arrange_element((ui_element *)page->icon_arrow, &icon_arrow_rect);
+    app_page_shell_measure_and_arrange_element((ui_element *)page->icon_arrow, &icon_arrow_rect,
+                                               "todo_page");
 
     const SDL_FRect task_input_rect = {LAYOUT_MARGIN + ICON_CELL_W, INPUT_ROW_Y,
                                        layout->content_width - ICON_CELL_W - ADD_BUTTON_W,
                                        INPUT_ROW_HEIGHT};
-    measure_and_arrange_element((ui_element *)page->task_input, &task_input_rect);
+    app_page_shell_measure_and_arrange_element((ui_element *)page->task_input, &task_input_rect,
+                                               "todo_page");
 
     const SDL_FRect add_button_rect = {layout->add_button_x, INPUT_ROW_Y, ADD_BUTTON_W,
                                        INPUT_ROW_HEIGHT};
-    measure_and_arrange_element((ui_element *)page->add_button, &add_button_rect);
+    app_page_shell_measure_and_arrange_element((ui_element *)page->add_button, &add_button_rect,
+                                               "todo_page");
 }
 
 static void arrange_stats_section(todo_page *page, const todo_page_layout *layout)
 {
     const SDL_FRect stats_rect = {LAYOUT_MARGIN, STATS_ROW_Y, page->stats_text->base.rect.w,
                                   page->stats_text->base.rect.h};
-    measure_and_arrange_element((ui_element *)page->stats_text, &stats_rect);
+    app_page_shell_measure_and_arrange_element((ui_element *)page->stats_text, &stats_rect,
+                                               "todo_page");
 
     const SDL_FRect filter_rect = {layout->filter_x, STATS_ROW_Y, FILTER_W, FILTER_H};
-    measure_and_arrange_element((ui_element *)page->filter_group, &filter_rect);
+    app_page_shell_measure_and_arrange_element((ui_element *)page->filter_group, &filter_rect,
+                                               "todo_page");
 }
 
 static void arrange_list_section(todo_page *page, const todo_page_layout *layout)
 {
     const SDL_FRect top_rule_rect = {LAYOUT_MARGIN, LIST_TOP_Y + TOP_RULE_Y_OFFSET,
                                      layout->content_width, 1.0F};
-    measure_and_arrange_element((ui_element *)page->top_rule, &top_rule_rect);
+    app_page_shell_measure_and_arrange_element((ui_element *)page->top_rule, &top_rule_rect,
+                                               "todo_page");
 
     const SDL_FRect list_frame_rect = {LAYOUT_MARGIN, LIST_TOP_Y, layout->content_width,
                                        layout->task_list_height};
-    measure_and_arrange_element((ui_element *)page->list_frame, &list_frame_rect);
+    app_page_shell_measure_and_arrange_element((ui_element *)page->list_frame, &list_frame_rect,
+                                               "todo_page");
 
     const SDL_FRect scroll_rect = {LAYOUT_MARGIN, LIST_TOP_Y, layout->content_width,
                                    layout->task_list_height};
-    measure_and_arrange_element((ui_element *)page->scroll_view, &scroll_rect);
+    app_page_shell_measure_and_arrange_element((ui_element *)page->scroll_view, &scroll_rect,
+                                               "todo_page");
 }
 
 static void arrange_footer_section(todo_page *page, const todo_page_layout *layout)
 {
     const SDL_FRect bottom_rule_rect = {LAYOUT_MARGIN, layout->footer_rule_y, layout->content_width,
                                         1.0F};
-    measure_and_arrange_element((ui_element *)page->bottom_rule, &bottom_rule_rect);
+    app_page_shell_measure_and_arrange_element((ui_element *)page->bottom_rule, &bottom_rule_rect,
+                                               "todo_page");
 
     const SDL_FRect clear_done_rect = {LAYOUT_MARGIN, layout->footer_y, CLEAR_BUTTON_W,
                                        CLEAR_BUTTON_H};
-    measure_and_arrange_element((ui_element *)page->clear_done, &clear_done_rect);
+    app_page_shell_measure_and_arrange_element((ui_element *)page->clear_done, &clear_done_rect,
+                                               "todo_page");
 
     const SDL_FRect remaining_rect = {
         LAYOUT_MARGIN + layout->content_width - REMAINING_LABEL_RIGHT_INSET,
         layout->footer_y + REMAINING_LABEL_Y_OFFSET, page->remaining_text->base.rect.w,
         page->remaining_text->base.rect.h};
-    measure_and_arrange_element((ui_element *)page->remaining_text, &remaining_rect);
+    app_page_shell_measure_and_arrange_element((ui_element *)page->remaining_text, &remaining_rect,
+                                               "todo_page");
 }
 
 /*
@@ -884,9 +846,8 @@ static void arrange_page_layout(todo_page *page, const todo_page_layout *layout)
         fail_fast("todo_page: arrange_page_layout called with invalid arguments");
     }
 
-    const SDL_FRect window_root_rect = {0.0F, 0.0F, (float)page->viewport_width,
-                                        (float)page->viewport_height};
-    measure_and_arrange_element((ui_element *)page->window_root, &window_root_rect);
+    app_page_shell_arrange_root(&page->shell, page->viewport_width, page->viewport_height,
+                                "todo_page");
     arrange_header_section(page, layout);
     arrange_input_section(page, layout);
     arrange_stats_section(page, layout);
@@ -896,7 +857,9 @@ static void arrange_page_layout(todo_page *page, const todo_page_layout *layout)
     // FPS counter anchoring uses viewport dimensions.
     page->fps_counter->viewport_width = page->viewport_width;
     page->fps_counter->viewport_height = page->viewport_height;
-    ui_element_measure((ui_element *)page->fps_counter, &window_root_rect);
+    ui_element_measure(
+        (ui_element *)page->fps_counter,
+        &(SDL_FRect){0.0F, 0.0F, (float)page->viewport_width, (float)page->viewport_height});
 }
 
 // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
@@ -928,7 +891,6 @@ todo_page *todo_page_create(SDL_Window *window, ui_runtime *context, int viewpor
         fail_fast("todo_page: failed to allocate page object");
     }
 
-    page->context = context;
     page->viewport_width = viewport_width;
     page->viewport_height = viewport_height;
     page->next_task_id = 1U;
@@ -1077,43 +1039,36 @@ todo_page *todo_page_create(SDL_Window *window, ui_runtime *context, int viewpor
         fail_fast("todo_page: failed to create fps counter");
     }
 
-    page->window_root =
-        ui_window_create(&(SDL_FRect){0.0F, 0.0F, (float)viewport_width, (float)viewport_height});
-    if (page->window_root == NULL)
-    {
-        fail_fast("todo_page: failed to create window root");
-    }
+    app_page_shell_init(&page->shell, context, viewport_width, viewport_height, "todo_page");
 
-    add_window_child_or_fail(page->window_root, (ui_element *)page->header_left);
-    add_window_child_or_fail(page->window_root, (ui_element *)page->header_right);
-    add_window_child_or_fail(page->window_root, (ui_element *)page->title_text);
-    add_window_child_or_fail(page->window_root, (ui_element *)page->datetime_text);
-    add_window_child_or_fail(page->window_root, (ui_element *)page->icon_cell);
-    add_window_child_or_fail(page->window_root, (ui_element *)page->icon_arrow);
-    add_window_child_or_fail(page->window_root, (ui_element *)page->task_input);
-    add_window_child_or_fail(page->window_root, (ui_element *)page->add_button);
-    add_window_child_or_fail(page->window_root, (ui_element *)page->stats_text);
-    add_window_child_or_fail(page->window_root, (ui_element *)page->filter_group);
-    add_window_child_or_fail(page->window_root, (ui_element *)page->top_rule);
-    add_window_child_or_fail(page->window_root, (ui_element *)page->list_frame);
-    add_window_child_or_fail(page->window_root, (ui_element *)page->scroll_view);
-    add_window_child_or_fail(page->window_root, (ui_element *)page->bottom_rule);
-    add_window_child_or_fail(page->window_root, (ui_element *)page->clear_done);
-    add_window_child_or_fail(page->window_root, (ui_element *)page->remaining_text);
-    add_window_child_or_fail(page->window_root, (ui_element *)page->fps_counter);
+    add_window_child_or_fail(page, (ui_element *)page->header_left);
+    add_window_child_or_fail(page, (ui_element *)page->header_right);
+    add_window_child_or_fail(page, (ui_element *)page->title_text);
+    add_window_child_or_fail(page, (ui_element *)page->datetime_text);
+    add_window_child_or_fail(page, (ui_element *)page->icon_cell);
+    add_window_child_or_fail(page, (ui_element *)page->icon_arrow);
+    add_window_child_or_fail(page, (ui_element *)page->task_input);
+    add_window_child_or_fail(page, (ui_element *)page->add_button);
+    add_window_child_or_fail(page, (ui_element *)page->stats_text);
+    add_window_child_or_fail(page, (ui_element *)page->filter_group);
+    add_window_child_or_fail(page, (ui_element *)page->top_rule);
+    add_window_child_or_fail(page, (ui_element *)page->list_frame);
+    add_window_child_or_fail(page, (ui_element *)page->scroll_view);
+    add_window_child_or_fail(page, (ui_element *)page->bottom_rule);
+    add_window_child_or_fail(page, (ui_element *)page->clear_done);
+    add_window_child_or_fail(page, (ui_element *)page->remaining_text);
+    add_window_child_or_fail(page, (ui_element *)page->fps_counter);
 
     page->title_text->base.parent = &page->header_left->base;
     page->datetime_text->base.parent = &page->header_right->base;
     page->icon_arrow->base.parent = &page->icon_cell->base;
-    page->fps_counter->base.parent = &page->window_root->base;
+    page->fps_counter->base.parent = &page->shell.window_root->base;
     page->fps_counter->base.align_h = UI_ALIGN_RIGHT;
     page->fps_counter->base.align_v = UI_ALIGN_BOTTOM;
 
     // Single source of truth for viewport-dependent geometry at startup.
     const todo_page_layout layout = measure_page_layout(page);
     arrange_page_layout(page, &layout);
-
-    register_element(page, (ui_element *)page->window_root);
 
     static const char *initial_task_titles[] = {
         "red", "orange", "yellow", "green", "blue", "indigo", "violet", "cyan", "magenta", "amber",

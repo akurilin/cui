@@ -1,7 +1,7 @@
 #include "pages/corners_page.h"
 
+#include "pages/page_shell.h"
 #include "ui/ui_button.h"
-#include "ui/ui_window.h"
 #include "util/fail_fast.h"
 
 #include <stdlib.h>
@@ -30,8 +30,9 @@ typedef struct anchored_button_spec
 
 struct corners_page
 {
-    ui_runtime *context;
-    ui_window *window_root;
+    app_page_shell shell;
+    int viewport_width;
+    int viewport_height;
     ui_button *buttons[CORNER_BUTTON_COUNT];
 };
 
@@ -56,9 +57,9 @@ static const anchored_button_spec BUTTON_SPECS[CORNER_BUTTON_COUNT] = {
 
 static void handle_corner_button_click(void *context) { (void)context; }
 
-static ui_button *create_anchored_button(const anchored_button_spec *spec, ui_element *parent)
+static ui_button *create_anchored_button(const anchored_button_spec *spec)
 {
-    if (spec == NULL || parent == NULL)
+    if (spec == NULL)
     {
         fail_fast("corners_page: invalid anchored button spec");
     }
@@ -74,7 +75,6 @@ static ui_button *create_anchored_button(const anchored_button_spec *spec, ui_el
         fail_fast("corners_page: failed to create anchored button");
     }
 
-    button->base.parent = parent;
     button->base.align_h = spec->align_h;
     button->base.align_v = spec->align_v;
     return button;
@@ -82,25 +82,23 @@ static ui_button *create_anchored_button(const anchored_button_spec *spec, ui_el
 
 static void remove_registered_elements(corners_page *page)
 {
-    if (page == NULL || page->context == NULL)
+    if (page == NULL)
     {
         fail_fast("corners_page: invalid state in remove_registered_elements");
     }
 
-    for (size_t i = 0U; i < SDL_arraysize(page->buttons); ++i)
+    app_page_shell_unregister_all(&page->shell, "corners_page");
+}
+
+static void arrange_page_layout(corners_page *page)
+{
+    if (page == NULL || page->viewport_width <= 0 || page->viewport_height <= 0)
     {
-        if (page->buttons[i] != NULL)
-        {
-            (void)ui_runtime_remove(page->context, (ui_element *)page->buttons[i], true);
-            page->buttons[i] = NULL;
-        }
+        fail_fast("corners_page: invalid arrange_page_layout state");
     }
 
-    if (page->window_root != NULL)
-    {
-        (void)ui_runtime_remove(page->context, (ui_element *)page->window_root, true);
-        page->window_root = NULL;
-    }
+    app_page_shell_arrange_root(&page->shell, page->viewport_width, page->viewport_height,
+                                "corners_page");
 }
 
 corners_page *corners_page_create(SDL_Window *window, ui_runtime *context, int viewport_width,
@@ -119,50 +117,35 @@ corners_page *corners_page_create(SDL_Window *window, ui_runtime *context, int v
         fail_fast("corners_page: failed to allocate page object");
     }
 
-    page->context = context;
-    page->window_root =
-        ui_window_create(&(SDL_FRect){0.0F, 0.0F, (float)viewport_width, (float)viewport_height});
-    if (page->window_root == NULL)
-    {
-        fail_fast("corners_page: failed to create window root");
-    }
+    app_page_shell_init(&page->shell, context, viewport_width, viewport_height, "corners_page");
+    page->viewport_width = viewport_width;
+    page->viewport_height = viewport_height;
 
     for (size_t i = 0U; i < SDL_arraysize(page->buttons); ++i)
     {
-        page->buttons[i] = create_anchored_button(&BUTTON_SPECS[i], &page->window_root->base);
+        page->buttons[i] = create_anchored_button(&BUTTON_SPECS[i]);
         if (page->buttons[i] == NULL)
         {
             fail_fast("corners_page: failed to create anchored button %zu", i);
         }
+        app_page_shell_add_window_child(&page->shell, (ui_element *)page->buttons[i],
+                                        "corners_page");
     }
 
-    if (!ui_runtime_add(page->context, (ui_element *)page->window_root))
-    {
-        fail_fast("corners_page: failed to register window root");
-    }
-
-    for (size_t i = 0U; i < SDL_arraysize(page->buttons); ++i)
-    {
-        if (!ui_runtime_add(page->context, (ui_element *)page->buttons[i]))
-        {
-            fail_fast("corners_page: failed to register button %zu", i);
-        }
-    }
-
+    arrange_page_layout(page);
     return page;
 }
 
 bool corners_page_resize(corners_page *page, int viewport_width, int viewport_height)
 {
-    if (page == NULL || page->window_root == NULL || viewport_width <= 0 || viewport_height <= 0)
+    if (page == NULL || viewport_width <= 0 || viewport_height <= 0)
     {
         fail_fast("corners_page_resize called with invalid arguments");
     }
 
-    if (!ui_window_set_size(page->window_root, (float)viewport_width, (float)viewport_height))
-    {
-        fail_fast("corners_page: failed to resize window root");
-    }
+    page->viewport_width = viewport_width;
+    page->viewport_height = viewport_height;
+    arrange_page_layout(page);
     return true;
 }
 
