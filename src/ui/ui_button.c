@@ -50,6 +50,43 @@ static void update_button(ui_element *element, float delta_seconds)
     (void)delta_seconds;
 }
 
+static void measure_button(ui_element *element, const SDL_FRect *available_rect)
+{
+    (void)available_rect;
+
+    ui_button *button = (ui_button *)element;
+    if (button == NULL)
+    {
+        return;
+    }
+
+    const float intrinsic_height = DEBUG_GLYPH_HEIGHT + 12.0F;
+    float intrinsic_width = 24.0F;
+    if (button->label != NULL && button->label[0] != '\0')
+    {
+        intrinsic_width += (float)strlen(button->label) * DEBUG_GLYPH_WIDTH;
+    }
+
+    if (button->base.rect.w < intrinsic_width)
+    {
+        button->base.rect.w = intrinsic_width;
+    }
+    if (button->base.rect.h < intrinsic_height)
+    {
+        button->base.rect.h = intrinsic_height;
+    }
+}
+
+static void arrange_button(ui_element *element, const SDL_FRect *final_rect)
+{
+    if (element == NULL || final_rect == NULL)
+    {
+        return;
+    }
+
+    element->rect = *final_rect;
+}
+
 static void render_button(const ui_element *element, SDL_Renderer *renderer)
 {
     const ui_button *button = (const ui_button *)element;
@@ -80,6 +117,8 @@ static void render_button(const ui_element *element, SDL_Renderer *renderer)
 static void destroy_button(ui_element *element) { free(element); }
 
 static const ui_element_ops BUTTON_OPS = {
+    .measure = measure_button,
+    .arrange = arrange_button,
     .handle_event = handle_button_event,
     .update = update_button,
     .render = render_button,

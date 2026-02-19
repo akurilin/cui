@@ -146,47 +146,80 @@ static float clamp_non_negative(float value)
     return value;
 }
 
-static void layout_children(ui_layout_container *container)
+static float measure_vertical_children(ui_layout_container *container, float inner_w)
 {
     const float padding = DEFAULT_LAYOUT_PADDING;
     const float spacing = DEFAULT_LAYOUT_SPACING;
-    const float inner_w = clamp_non_negative(container->base.rect.w - (padding * 2.0F));
-    const float inner_h = clamp_non_negative(container->base.rect.h - (padding * 2.0F));
+    float cursor_y = padding;
 
-    if (container->axis == UI_LAYOUT_AXIS_VERTICAL)
+    for (size_t i = 0; i < container->child_count; ++i)
     {
-        float cursor_y = padding;
-        for (size_t i = 0; i < container->child_count; ++i)
+        ui_element *child = container->children[i];
+        if (!is_valid_element(child))
         {
-            ui_element *child = container->children[i];
-            if (!is_valid_element(child))
-            {
-                continue;
-            }
-
-            const float child_height = clamp_non_negative(child->rect.h);
-            child->rect.x = padding;
-            child->rect.y = cursor_y;
-            child->rect.w = inner_w;
-            child->rect.h = child_height;
-            cursor_y += child_height + spacing;
+            continue;
         }
 
-        // Auto-size rect.h to the total content height so parent elements
-        // (such as a scroll view) can read the container's rect to determine
-        // how much content it holds.
-        if (cursor_y > padding)
-        {
-            container->base.rect.h = cursor_y - spacing + padding;
-        }
-        else
-        {
-            container->base.rect.h = padding * PADDING_SIDES;
-        }
-        return;
+        const SDL_FRect child_available = {0.0F, 0.0F, inner_w, child->rect.h};
+        ui_element_measure(child, &child_available);
+        cursor_y += clamp_non_negative(child->rect.h) + spacing;
     }
 
+    if (cursor_y <= padding)
+    {
+        return padding * PADDING_SIDES;
+    }
+
+    return cursor_y - spacing + padding;
+}
+
+static void arrange_vertical_children(ui_layout_container *container, float inner_w)
+{
+    const float padding = DEFAULT_LAYOUT_PADDING;
+    const float spacing = DEFAULT_LAYOUT_SPACING;
+    float cursor_y = padding;
+
+    for (size_t i = 0; i < container->child_count; ++i)
+    {
+        ui_element *child = container->children[i];
+        if (!is_valid_element(child))
+        {
+            continue;
+        }
+
+        const float child_height = clamp_non_negative(child->rect.h);
+        const SDL_FRect child_final = {padding, cursor_y, inner_w, child_height};
+        ui_element_arrange(child, &child_final);
+        cursor_y += child_height + spacing;
+    }
+}
+
+static void measure_horizontal_children(ui_layout_container *container, float inner_w,
+                                        float inner_h)
+{
+    for (size_t i = 0; i < container->child_count; ++i)
+    {
+        ui_element *child = container->children[i];
+        if (!is_valid_element(child))
+        {
+            continue;
+        }
+
+        SDL_FRect child_available = {0.0F, 0.0F, inner_w, inner_h};
+        if (child->align_h == UI_ALIGN_RIGHT)
+        {
+            child_available.w = child->rect.w;
+        }
+        ui_element_measure(child, &child_available);
+    }
+}
+
+static void arrange_horizontal_children(ui_layout_container *container, float inner_h)
+{
+    const float padding = DEFAULT_LAYOUT_PADDING;
+    const float spacing = DEFAULT_LAYOUT_SPACING;
     float cursor_x = padding;
+
     for (size_t i = 0; i < container->child_count; ++i)
     {
         ui_element *child = container->children[i];
@@ -196,26 +229,77 @@ static void layout_children(ui_layout_container *container)
         }
 
         const float child_width = clamp_non_negative(child->rect.w);
-        child->rect.y = padding;
-        child->rect.w = child_width;
-        child->rect.h = inner_h;
+        const float inset_x = child->rect.x;
 
         if (child->align_h == UI_ALIGN_RIGHT)
         {
             // Preserve right-anchor inset. screen_rect resolves x from parent
             // width when align_h is UI_ALIGN_RIGHT.
+            const SDL_FRect child_final = {inset_x, padding, child_width, inner_h};
+            ui_element_arrange(child, &child_final);
             continue;
         }
 
-        child->rect.x = cursor_x;
+        const SDL_FRect child_final = {cursor_x, padding, child_width, inner_h};
+        ui_element_arrange(child, &child_final);
         cursor_x += child_width + spacing;
     }
+}
+
+static void measure_layout_container(ui_element *element, const SDL_FRect *available_rect)
+{
+    ui_layout_container *container = (ui_layout_container *)element;
+    const float padding = DEFAULT_LAYOUT_PADDING;
+
+    if (available_rect != NULL)
+    {
+        container->base.rect.w = clamp_non_negative(available_rect->w);
+        if (available_rect->h > 0.0F)
+        {
+            container->base.rect.h = clamp_non_negative(available_rect->h);
+        }
+    }
+
+    const float inner_w = clamp_non_negative(container->base.rect.w - (padding * 2.0F));
+    const float inner_h = clamp_non_negative(container->base.rect.h - (padding * 2.0F));
+
+    if (container->axis == UI_LAYOUT_AXIS_VERTICAL)
+    {
+        container->base.rect.h = measure_vertical_children(container, inner_w);
+        return;
+    }
+
+    measure_horizontal_children(container, inner_w, inner_h);
+}
+
+static void arrange_layout_container(ui_element *element, const SDL_FRect *final_rect)
+{
+    ui_layout_container *container = (ui_layout_container *)element;
+    const float padding = DEFAULT_LAYOUT_PADDING;
+
+    if (final_rect != NULL)
+    {
+        container->base.rect = *final_rect;
+    }
+
+    const float inner_w = clamp_non_negative(container->base.rect.w - (padding * 2.0F));
+    const float inner_h = clamp_non_negative(container->base.rect.h - (padding * 2.0F));
+    if (container->axis == UI_LAYOUT_AXIS_VERTICAL)
+    {
+        arrange_vertical_children(container, inner_w);
+        return;
+    }
+
+    arrange_horizontal_children(container, inner_h);
 }
 
 static bool handle_layout_container_event(ui_element *element, const SDL_Event *event)
 {
     ui_layout_container *container = (ui_layout_container *)element;
-    layout_children(container);
+    if (container == NULL)
+    {
+        return false;
+    }
 
     if (is_pointer_press_event(event))
     {
@@ -275,7 +359,10 @@ static void set_layout_container_focus(ui_element *element, bool focused)
 static void update_layout_container(ui_element *element, float delta_seconds)
 {
     ui_layout_container *container = (ui_layout_container *)element;
-    layout_children(container);
+    if (container == NULL)
+    {
+        return;
+    }
 
     for (size_t i = 0; i < container->child_count; ++i)
     {
@@ -286,10 +373,6 @@ static void update_layout_container(ui_element *element, float delta_seconds)
         }
         child->ops->update(child, delta_seconds);
     }
-
-    // Single-pass layout uses each child's current size. Re-run layout after
-    // child updates so size changes this frame are reflected before render.
-    layout_children(container);
 }
 
 static void render_layout_container(const ui_element *element, SDL_Renderer *renderer)
@@ -332,6 +415,8 @@ static void destroy_layout_container(ui_element *element)
 }
 
 static const ui_element_ops LAYOUT_CONTAINER_OPS = {
+    .measure = measure_layout_container,
+    .arrange = arrange_layout_container,
     .handle_event = handle_layout_container_event,
     .can_focus = can_focus_layout_container,
     .set_focus = set_layout_container_focus,

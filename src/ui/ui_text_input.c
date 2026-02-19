@@ -14,6 +14,42 @@ static const float CARET_WIDTH = 2.0F;
 static const float HALF = 0.5F;
 static const float PADDING_SIDES = 2.0F;
 
+static size_t compute_max_visible_chars(float width)
+{
+    if (width <= 0.0F)
+    {
+        return 0U;
+    }
+
+    const float usable_width = width - (PADDING_SIDES * TEXT_PADDING);
+    if (usable_width <= 0.0F)
+    {
+        return 0U;
+    }
+
+    size_t max_visible = (size_t)(usable_width / DEBUG_GLYPH_WIDTH);
+    if (max_visible > UI_TEXT_INPUT_BUFFER_SIZE - 1U)
+    {
+        max_visible = UI_TEXT_INPUT_BUFFER_SIZE - 1U;
+    }
+    return max_visible;
+}
+
+static void update_visible_capacity(ui_text_input *input)
+{
+    if (input == NULL)
+    {
+        return;
+    }
+
+    input->max_length = compute_max_visible_chars(input->base.rect.w);
+    if (input->length > input->max_length)
+    {
+        input->length = input->max_length;
+        input->buffer[input->length] = '\0';
+    }
+}
+
 static void set_focus(ui_text_input *input, bool focused)
 {
     if (input == NULL || input->is_focused == focused)
@@ -111,6 +147,36 @@ static void update_text_input(ui_element *element, float delta_seconds)
     }
 }
 
+static void measure_text_input(ui_element *element, const SDL_FRect *available_rect)
+{
+    (void)available_rect;
+
+    ui_text_input *input = (ui_text_input *)element;
+    if (input == NULL)
+    {
+        return;
+    }
+
+    if (input->base.rect.h < DEBUG_GLYPH_HEIGHT + (PADDING_SIDES * TEXT_PADDING))
+    {
+        input->base.rect.h = DEBUG_GLYPH_HEIGHT + (PADDING_SIDES * TEXT_PADDING);
+    }
+
+    update_visible_capacity(input);
+}
+
+static void arrange_text_input(ui_element *element, const SDL_FRect *final_rect)
+{
+    ui_text_input *input = (ui_text_input *)element;
+    if (input == NULL || final_rect == NULL)
+    {
+        return;
+    }
+
+    input->base.rect = *final_rect;
+    update_visible_capacity(input);
+}
+
 static void render_text_input(const ui_element *element, SDL_Renderer *renderer)
 {
     const ui_text_input *input = (const ui_text_input *)element;
@@ -170,6 +236,8 @@ static void destroy_text_input(ui_element *element)
 }
 
 static const ui_element_ops TEXT_INPUT_OPS = {
+    .measure = measure_text_input,
+    .arrange = arrange_text_input,
     .handle_event = handle_text_input_event,
     .can_focus = can_focus_text_input,
     .set_focus = set_text_input_focus,
@@ -210,13 +278,7 @@ ui_text_input *ui_text_input_create(const SDL_FRect *rect, SDL_Color text_color,
     input->placeholder = NULL;
     input->length = 0;
 
-    // Cap max characters to what fits within the visible area.
-    size_t max_visible = (size_t)((rect->w - (PADDING_SIDES * TEXT_PADDING)) / DEBUG_GLYPH_WIDTH);
-    if (max_visible > UI_TEXT_INPUT_BUFFER_SIZE - 1)
-    {
-        max_visible = UI_TEXT_INPUT_BUFFER_SIZE - 1;
-    }
-    input->max_length = max_visible;
+    update_visible_capacity(input);
 
     input->is_focused = false;
     input->text_color = text_color;

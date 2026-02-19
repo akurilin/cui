@@ -18,6 +18,8 @@
  * Behavior/contract:
  * - Implementations must return a non-NULL page instance from `create` on
  *   success.
+ * - Implementations must construct a `ui_window` root tree node and register
+ *   that root in `ui_runtime`.
  * - Implementations are expected to fail fast for unrecoverable internal
  *   failures instead of returning recoverable errors.
  * - `resize` and `update` return true on success.

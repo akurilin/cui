@@ -57,7 +57,7 @@ typedef struct ui_text_input
  *
  * Parameters:
  * - rect: position and size in window coordinates. Width determines the
- *   maximum number of visible (and typeable) characters.
+ *   initial maximum number of visible (and typeable) characters.
  * - text_color: color used for rendered text and the caret.
  * - background_color: fill color of the input area.
  * - border_color: border color when the field is not focused.
@@ -92,7 +92,7 @@ const char *ui_text_input_get_value(const ui_text_input *input);
  *
  * Behavior:
  * - Copies value into the internal buffer.
- * - Truncates to max visible length.
+ * - Truncates to current max visible length (derived from latest arranged width).
  *
  * Returns false on invalid arguments.
  */

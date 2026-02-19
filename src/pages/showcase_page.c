@@ -1,5 +1,6 @@
 #include "pages/showcase_page.h"
 
+#include "pages/page_shell.h"
 #include "ui/ui_button.h"
 #include "ui/ui_checkbox.h"
 #include "ui/ui_fps_counter.h"
@@ -12,21 +13,17 @@
 #include "ui/ui_slider.h"
 #include "ui/ui_text.h"
 #include "ui/ui_text_input.h"
-#include "ui/ui_window.h"
 #include "util/fail_fast.h"
 
 #include <stdlib.h>
 
 struct showcase_page
 {
-    ui_runtime *context;
-    ui_element *registered_elements[8];
-    size_t registered_count;
+    app_page_shell shell;
 
     int viewport_width;
     int viewport_height;
 
-    ui_window *window_root;
     ui_pane *background;
     ui_scroll_view *scroll_view;
     ui_fps_counter *fps_counter;
@@ -46,40 +43,30 @@ static const float FOOTER_RESERVE = 40.0F;
 static const float MAIN_SCROLL_STEP = 24.0F;
 static const char *SHOWCASE_SEGMENTS[] = {"FIRST", "SECOND", "THIRD"};
 
-static void register_element(showcase_page *page, ui_element *element)
+typedef struct showcase_page_layout
 {
-    if (page == NULL || page->context == NULL || element == NULL)
-    {
-        fail_fast("showcase_page: invalid register_element input");
-    }
-
-    if (!ui_runtime_add(page->context, element))
-    {
-        fail_fast("showcase_page: ui_runtime_add failed");
-    }
-
-    if (page->registered_count >= SDL_arraysize(page->registered_elements))
-    {
-        fail_fast("showcase_page: registered element tracker capacity exceeded");
-    }
-
-    page->registered_elements[page->registered_count++] = element;
-}
+    SDL_FRect background_rect;
+    SDL_FRect scroll_rect;
+} showcase_page_layout;
 
 static void unregister_elements(showcase_page *page)
 {
-    if (page == NULL || page->context == NULL)
+    if (page == NULL)
     {
         fail_fast("showcase_page: invalid state in unregister_elements");
     }
 
-    for (size_t i = page->registered_count; i > 0U; --i)
+    app_page_shell_unregister_all(&page->shell, "showcase_page");
+}
+
+static void add_window_child_or_fail(showcase_page *page, ui_element *child)
+{
+    if (page == NULL || child == NULL)
     {
-        ui_element *element = page->registered_elements[i - 1U];
-        (void)ui_runtime_remove(page->context, element, true);
+        fail_fast("showcase_page: invalid add_window_child_or_fail input");
     }
 
-    page->registered_count = 0U;
+    app_page_shell_add_window_child(&page->shell, child, "showcase_page");
 }
 
 static void add_child_or_fail(ui_layout_container *container, ui_element *child)
@@ -384,24 +371,12 @@ static ui_layout_container *create_showcase_content(showcase_page *page, SDL_Win
     return content;
 }
 
-static void relayout_page(showcase_page *page)
+static showcase_page_layout compute_page_geometry(const showcase_page *page)
 {
-    if (page == NULL || page->window_root == NULL || page->background == NULL ||
-        page->scroll_view == NULL)
+    if (page == NULL)
     {
-        fail_fast("showcase_page: invalid relayout state");
+        fail_fast("showcase_page: invalid compute_page_geometry state");
     }
-
-    if (!ui_window_set_size(page->window_root, (float)page->viewport_width,
-                            (float)page->viewport_height))
-    {
-        fail_fast("showcase_page: failed to resize window root");
-    }
-
-    page->background->base.rect.x = 0.0F;
-    page->background->base.rect.y = 0.0F;
-    page->background->base.rect.w = (float)page->viewport_width;
-    page->background->base.rect.h = (float)page->viewport_height;
 
     float scroll_width = (float)page->viewport_width - (PAGE_MARGIN * 2.0F);
     float scroll_height = (float)page->viewport_height - (PAGE_MARGIN * 2.0F) - FOOTER_RESERVE;
@@ -415,10 +390,24 @@ static void relayout_page(showcase_page *page)
         scroll_height = 80.0F;
     }
 
-    page->scroll_view->base.rect.x = PAGE_MARGIN;
-    page->scroll_view->base.rect.y = PAGE_MARGIN;
-    page->scroll_view->base.rect.w = scroll_width;
-    page->scroll_view->base.rect.h = scroll_height;
+    return (showcase_page_layout){
+        .background_rect = {0.0F, 0.0F, (float)page->viewport_width, (float)page->viewport_height},
+        .scroll_rect = {PAGE_MARGIN, PAGE_MARGIN, scroll_width, scroll_height},
+    };
+}
+
+static void arrange_page_layout(showcase_page *page, const showcase_page_layout *layout)
+{
+    if (page == NULL || layout == NULL || page->shell.window_root == NULL ||
+        page->background == NULL || page->scroll_view == NULL)
+    {
+        fail_fast("showcase_page: invalid arrange_page_layout state");
+    }
+
+    page->background->base.rect = layout->background_rect;
+    page->scroll_view->base.rect = layout->scroll_rect;
+    app_page_shell_arrange_root(&page->shell, page->viewport_width, page->viewport_height,
+                                "showcase_page");
 }
 
 showcase_page *showcase_page_create(SDL_Window *window, ui_runtime *context, int viewport_width,
@@ -441,17 +430,9 @@ showcase_page *showcase_page_create(SDL_Window *window, ui_runtime *context, int
         fail_fast("showcase_page: failed to allocate page object");
     }
 
-    page->context = context;
     page->viewport_width = viewport_width;
     page->viewport_height = viewport_height;
-
-    page->window_root =
-        ui_window_create(&(SDL_FRect){0.0F, 0.0F, (float)viewport_width, (float)viewport_height});
-    if (page->window_root == NULL)
-    {
-        fail_fast("showcase_page: failed to create window root");
-    }
-    register_element(page, (ui_element *)page->window_root);
+    app_page_shell_init(&page->shell, context, viewport_width, viewport_height, "showcase_page");
 
     const SDL_Color color_bg = {243, 245, 250, 255};
     page->background = ui_pane_create(
@@ -460,8 +441,7 @@ showcase_page *showcase_page_create(SDL_Window *window, ui_runtime *context, int
     {
         fail_fast("showcase_page: failed to create background pane");
     }
-    page->background->base.parent = &page->window_root->base;
-    register_element(page, (ui_element *)page->background);
+    add_window_child_or_fail(page, (ui_element *)page->background);
 
     ui_layout_container *content = create_showcase_content(page, window, renderer);
 
@@ -474,8 +454,7 @@ showcase_page *showcase_page_create(SDL_Window *window, ui_runtime *context, int
     {
         fail_fast("showcase_page: failed to create scroll view");
     }
-    page->scroll_view->base.parent = &page->window_root->base;
-    register_element(page, (ui_element *)page->scroll_view);
+    add_window_child_or_fail(page, (ui_element *)page->scroll_view);
 
     const SDL_Color color_fps = {56, 61, 76, 255};
     page->fps_counter =
@@ -484,10 +463,10 @@ showcase_page *showcase_page_create(SDL_Window *window, ui_runtime *context, int
     {
         fail_fast("showcase_page: failed to create fps counter");
     }
-    page->fps_counter->base.parent = &page->window_root->base;
-    register_element(page, (ui_element *)page->fps_counter);
+    add_window_child_or_fail(page, (ui_element *)page->fps_counter);
 
-    relayout_page(page);
+    const showcase_page_layout layout = compute_page_geometry(page);
+    arrange_page_layout(page, &layout);
 
     return page;
 }
@@ -501,7 +480,8 @@ bool showcase_page_resize(showcase_page *page, int viewport_width, int viewport_
 
     page->viewport_width = viewport_width;
     page->viewport_height = viewport_height;
-    relayout_page(page);
+    const showcase_page_layout layout = compute_page_geometry(page);
+    arrange_page_layout(page, &layout);
     return true;
 }
 
@@ -512,6 +492,8 @@ bool showcase_page_update(showcase_page *page)
         fail_fast("showcase_page_update called with NULL page");
     }
 
+    const showcase_page_layout layout = compute_page_geometry(page);
+    arrange_page_layout(page, &layout);
     return true;
 }
 

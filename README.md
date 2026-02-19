@@ -36,6 +36,7 @@ The codebase is split into:
 - `showcase_page` is a one-screen widget gallery used to validate and demo all built-in controls.
 - `ui_runtime` is the lifecycle owner + dispatcher for all elements.
 - `ui_element` is the common base interface for polymorphism in C.
+- `app_page_shell` is the shared page scaffold that creates/registers a mandatory `ui_window` root and centralizes page element teardown.
 
 ### UI "Inheritance" Model (C-style)
 
@@ -74,7 +75,7 @@ The UI uses a **top-down width, bottom-up height** convention:
 
 `ui_layout_container` supports both **vertical** and **horizontal** stacking. In vertical mode, children are positioned top-to-bottom and the container stretches each child's width to fill; in horizontal mode, children are positioned left-to-right and the container stretches each child's height. For horizontal rows, right-aligned children keep `rect.x` as a right-edge inset instead of participating in left-flow x placement. Layout uses fixed 8 px padding and 8 px inter-child spacing.
 
-Layout is **single-pass and imperative** — there are no separate measure/arrange phases. The container runs its layout pass on every `handle_event` and `update` call so that size changes propagate within the same frame. This keeps the implementation small and easy to follow.
+Layout is still **imperative**, but it now has an explicit split between measurement and arrangement. Default element behavior remains fixed-size/fixed-rect (no-op measure, direct-rect arrange). `ui_layout_container` and `ui_scroll_view` opt into explicit measure/arrange passes. Pages compute viewport geometry via `compute_page_geometry`, write desired rects directly onto element structs, then call `arrange_root` once to cascade measure/arrange through the entire window child tree.
 
 Children track a **parent pointer and alignment anchors** for relative positioning. `ui_element_screen_rect()` resolves each element's window-space rectangle by walking the parent chain and applying horizontal/vertical anchor modes. This enables reliable anchoring (for example, bottom-right HUD elements) while preserving explicit ownership through container/context registration.
 
@@ -83,6 +84,7 @@ Children track a **parent pointer and alignment anchors** for relative positioni
 Key files:
 
 - `include/pages/app_page.h`: generic page-ops interface plus build-generated page table declarations.
+- `include/pages/page_shell.h`, `src/pages/page_shell.c`: shared page shell with mandatory root-window setup/resize, `arrange_root` cascade trigger, and runtime registration teardown helpers.
 - `include/pages/corners_page.h`, `src/pages/corners_page.c`: resize-anchor test page with eight edge/corner-aligned buttons.
 - `include/pages/showcase_page.h`, `src/pages/showcase_page.c`: all-widgets demo page with interactive controls inside a scrollable layout.
 - `include/pages/todo_page.h`, `src/pages/todo_page.c`: todo page public lifecycle API + private page logic (task state, callbacks, and widget composition).
@@ -101,7 +103,7 @@ Key files:
 - `include/ui/ui_layout_container.h`, `src/ui/ui_layout_container.c`: vertical/horizontal stack container with auto-sizing.
 - `include/ui/ui_scroll_view.h`, `src/ui/ui_scroll_view.c`: scrollable viewport wrapper with mouse-wheel input and clip-rect rendering.
 - `include/ui/ui_fps_counter.h`, `src/ui/ui_fps_counter.c`: self-updating FPS label anchored to viewport bottom-right.
-- `include/ui/ui_window.h`, `src/ui/ui_window.c`: non-rendering root parent element used for window-relative anchoring.
+- `include/ui/ui_window.h`, `src/ui/ui_window.c`: root tree element that owns child elements and forwards measure/arrange/event/update/render traversal.
 - `include/util/fail_fast.h`, `src/util/fail_fast.c`: shared fail-fast logger/abort helper for unrecoverable internal errors.
 
 ### Frame/Lifecycle Flow
@@ -146,14 +148,14 @@ These are two distinct flows in the current system.
    - containing a vertical `ui_layout_container` (`rows_container`),
    - containing one horizontal `ui_layout_container` per task row.
 5. Each task row creates leaf controls (number, checkbox, title, time, delete button) with fixed row/column dimensions.
-6. Page-owned elements are registered into `ui_runtime` (`ui_runtime_add`), transferring ownership.
-7. During frame updates, `ui_scroll_view` and `ui_layout_container` run layout passes:
-   - scroll view positions/stretches child content to viewport width,
-   - layout containers compute child x/y/w/h (vertical or horizontal stacking),
-   - vertical containers auto-size content height from children.
+6. Every page initializes `app_page_shell`, which creates/registers a single `ui_window` root into `ui_runtime`; that root owns the page element tree.
+7. `todo_page` performs an explicit page layout pass (`compute_page_geometry` + `arrange_page_layout`):
+   - page code writes desired rects directly onto element structs from viewport-derived geometry,
+   - then calls `arrange_root` once at the end of the arrange pass,
+   - the window root cascades measure/arrange through the entire child tree (containers auto-size, scroll views resolve bounds).
 8. Absolute render/hit-test rects are resolved from parent-relative rects via parent chain + alignment anchors (`ui_element_screen_rect`).
 
-In short: initial geometry is seeded by page code, then refined every frame by container layout passes.
+In short: initial geometry is seeded by page code writing rects, then finalized by a single window-root cascade triggered via `arrange_root`.
 
 #### 2) Runtime resize: user drags window
 
@@ -161,17 +163,17 @@ In short: initial geometry is seeded by page code, then refined every frame by c
 2. `main.c` handles it by:
    - updating renderer logical presentation to the new logical size,
    - calling selected page `resize(page_instance, new_w, new_h)`.
-3. `todo_page_resize` (for the TODO page implementation) updates page viewport fields and calls `relayout_page`.
-4. `relayout_page` recomputes and writes top-level rects:
+3. `todo_page_resize` (for the TODO page implementation) updates page viewport fields and runs `compute_page_geometry` + `arrange_page_layout`.
+4. Page arrange writes updated rects directly onto element structs:
    - stretches/shifts header panes,
    - right-anchors add/filter controls,
    - resizes list frame + scroll view + rows container,
-   - repositions footer elements,
-   - updates window-root/fps anchoring dimensions.
-5. Event processing and the subsequent `ui_runtime_update` pass trigger container layout again, so row internals and scroll bounds are recalculated under the new dimensions.
-6. `ui_runtime_render` then draws the updated layout for that frame.
+   - repositions footer elements.
+5. `arrange_root` is called once at the end, cascading measure/arrange through the window child tree.
+6. Page update/runtime update continue with already-arranged rects for the new viewport.
+7. `ui_runtime_render` then draws the updated layout for that frame.
 
-In short: resize updates page-level geometry immediately, and container-based child layout is re-applied during event/update passes before render.
+In short: resize writes page-level geometry directly onto elements, then triggers a single window-root cascade; containers no longer self-layout in event/update paths.
 
 ### Ownership Rules
 

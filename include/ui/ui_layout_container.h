@@ -17,12 +17,11 @@ typedef enum ui_layout_axis
 /*
  * Stack-like container element that auto-positions child elements.
  *
- * Single-pass design note:
- * - This container intentionally uses a simple single-pass layout algorithm.
- * - It does not run a separate "measure" pass where children report desired
- *   size to the parent.
- * - Child main-axis size comes from each child's current rect size.
- * - Child cross-axis size is stretched to fill the container's inner size.
+ * Measure/arrange design note:
+ * - The container implements explicit measure/arrange ops and recursively
+ *   measures/arranges children when parent layout code invokes those passes.
+ * - Child main-axis size is taken from measured child rect size.
+ * - Child cross-axis size is stretched to the container's inner size.
  *
  * This is intentional for v1 to keep the API and implementation small in this
  * learning-oriented project.
