@@ -68,10 +68,10 @@ ui_element (base type)
 
 ### Layout & Sizing Model
 
-The UI uses a **top-down width, bottom-up height** convention:
+For vertical stacking (the primary layout axis), the convention is **top-down width, bottom-up height**; horizontal stacking inverts this:
 
-- **Width flows down**: parent elements push widths onto children by writing `child->rect.w`. A `ui_scroll_view` sets the `ui_layout_container`'s `x`/`w`, and the container in turn sets each child's `x`/`w`.
-- **Height flows up**: children own their heights (`rect.h` is set at creation or during update). Parents read `child->rect.h` to position subsequent children and to auto-size their own `rect.h` to fit content.
+- **Vertical containers**: width flows **down** (parent pushes `inner_w` onto each child) and height flows **up** (children own their `rect.h`; the container reads them to position subsequent children and to auto-size its own `rect.h`).
+- **Horizontal containers**: height flows **down** (parent pushes `inner_h` onto each child) and width flows **up** (children keep their own `rect.w`; the container positions them left-to-right).
 
 `ui_layout_container` supports both **vertical** and **horizontal** stacking. In vertical mode, children are positioned top-to-bottom and the container stretches each child's width to fill; in horizontal mode, children are positioned left-to-right and the container stretches each child's height. For horizontal rows, right-aligned children keep `rect.x` as a right-edge inset instead of participating in left-flow x placement. Layout uses fixed 8 px padding and 8 px inter-child spacing.
 
@@ -79,7 +79,7 @@ Layout is still **imperative**, but it now has an explicit split between measure
 
 Children track a **parent pointer and alignment anchors** for relative positioning. `ui_element_screen_rect()` resolves each element's window-space rectangle by walking the parent chain and applying horizontal/vertical anchor modes. This enables reliable anchoring (for example, bottom-right HUD elements) while preserving explicit ownership through container/context registration.
 
-**The cascade in practice** (sidebar example): `ui_scroll_view` sets the container's `x`/`w` → `ui_layout_container` sets each child's `x`/`w` → container reads children's `h` to auto-size → scroll view reads the container's `h` to determine scroll bounds.
+**The cascade in practice** (task list example): `ui_scroll_view` sets the container's `x`/`w` → `ui_layout_container` sets each child's `x`/`w` → container reads children's `h` to auto-size → scroll view reads the container's `h` to determine scroll bounds.
 
 Key files:
 
