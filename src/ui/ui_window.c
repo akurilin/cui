@@ -202,8 +202,6 @@ static void measure_window(ui_element *element, const SDL_FRect *available_rect)
             window->base.rect.h = available_rect->h;
         }
     }
-
-    run_window_layout_pass(window);
 }
 
 static void arrange_window(ui_element *element, const SDL_FRect *final_rect)

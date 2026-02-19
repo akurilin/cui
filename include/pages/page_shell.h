@@ -76,17 +76,6 @@ void app_page_shell_resize_root(app_page_shell *shell, int viewport_width, int v
                                 const char *page_name);
 
 /*
- * Run measure + arrange for one element with standard measured-size handling.
- *
- * Parameters:
- * - `element`: target element to lay out.
- * - `rect`: available/final rect in parent-local coordinates.
- * - `page_name`: page identifier used in fail-fast logs.
- */
-void app_page_shell_measure_and_arrange_element(ui_element *element, const SDL_FRect *rect,
-                                                const char *page_name);
-
-/*
  * Measure and arrange the page root window for the current viewport.
  *
  * Parameters:

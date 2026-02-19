@@ -371,11 +371,11 @@ static ui_layout_container *create_showcase_content(showcase_page *page, SDL_Win
     return content;
 }
 
-static showcase_page_layout measure_page_layout(const showcase_page *page)
+static showcase_page_layout compute_page_geometry(const showcase_page *page)
 {
     if (page == NULL)
     {
-        fail_fast("showcase_page: invalid measure_page_layout state");
+        fail_fast("showcase_page: invalid compute_page_geometry state");
     }
 
     float scroll_width = (float)page->viewport_width - (PAGE_MARGIN * 2.0F);
@@ -404,12 +404,10 @@ static void arrange_page_layout(showcase_page *page, const showcase_page_layout 
         fail_fast("showcase_page: invalid arrange_page_layout state");
     }
 
+    page->background->base.rect = layout->background_rect;
+    page->scroll_view->base.rect = layout->scroll_rect;
     app_page_shell_arrange_root(&page->shell, page->viewport_width, page->viewport_height,
                                 "showcase_page");
-    app_page_shell_measure_and_arrange_element((ui_element *)page->background,
-                                               &layout->background_rect, "showcase_page");
-    app_page_shell_measure_and_arrange_element((ui_element *)page->scroll_view,
-                                               &layout->scroll_rect, "showcase_page");
 }
 
 showcase_page *showcase_page_create(SDL_Window *window, ui_runtime *context, int viewport_width,
@@ -467,7 +465,7 @@ showcase_page *showcase_page_create(SDL_Window *window, ui_runtime *context, int
     }
     add_window_child_or_fail(page, (ui_element *)page->fps_counter);
 
-    const showcase_page_layout layout = measure_page_layout(page);
+    const showcase_page_layout layout = compute_page_geometry(page);
     arrange_page_layout(page, &layout);
 
     return page;
@@ -482,7 +480,7 @@ bool showcase_page_resize(showcase_page *page, int viewport_width, int viewport_
 
     page->viewport_width = viewport_width;
     page->viewport_height = viewport_height;
-    const showcase_page_layout layout = measure_page_layout(page);
+    const showcase_page_layout layout = compute_page_geometry(page);
     arrange_page_layout(page, &layout);
     return true;
 }
@@ -494,7 +492,7 @@ bool showcase_page_update(showcase_page *page)
         fail_fast("showcase_page_update called with NULL page");
     }
 
-    const showcase_page_layout layout = measure_page_layout(page);
+    const showcase_page_layout layout = compute_page_geometry(page);
     arrange_page_layout(page, &layout);
     return true;
 }

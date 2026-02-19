@@ -91,13 +91,13 @@ void app_page_shell_resize_root(app_page_shell *shell, int viewport_width, int v
     }
 }
 
-void app_page_shell_measure_and_arrange_element(ui_element *element, const SDL_FRect *rect,
-                                                const char *page_name)
+static void measure_and_arrange_element(ui_element *element, const SDL_FRect *rect,
+                                        const char *page_name)
 {
     validate_page_name(page_name);
     if (element == NULL || rect == NULL)
     {
-        fail_fast("%s: invalid app_page_shell_measure_and_arrange_element input", page_name);
+        fail_fast("%s: invalid measure_and_arrange_element input", page_name);
     }
 
     ui_element_measure(element, rect);
@@ -120,8 +120,7 @@ void app_page_shell_arrange_root(app_page_shell *shell, int viewport_width, int 
     }
 
     const SDL_FRect window_root_rect = {0.0F, 0.0F, (float)viewport_width, (float)viewport_height};
-    app_page_shell_measure_and_arrange_element((ui_element *)shell->window_root, &window_root_rect,
-                                               page_name);
+    measure_and_arrange_element((ui_element *)shell->window_root, &window_root_rect, page_name);
 }
 
 void app_page_shell_unregister_all(app_page_shell *shell, const char *page_name)
